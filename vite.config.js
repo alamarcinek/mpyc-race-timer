@@ -5,6 +5,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/mpyc-race-timer/',
   plugins: [
     vue(),
     vueDevTools(),
