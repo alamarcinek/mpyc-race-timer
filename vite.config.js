@@ -5,7 +5,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/mpyc-race-timer/',
+  base: process.env.GITHUB_ACTIONS ? '/mpyc-race-timer/' : '/',
   plugins: [
     vue(),
     vueDevTools(),
