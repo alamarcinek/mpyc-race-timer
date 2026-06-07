@@ -1,4 +1,3 @@
-// Increase body limit — base64 photos can easily exceed the 1 MB default
 export const config = {
   api: {
     bodyParser: {
@@ -8,12 +7,20 @@ export const config = {
 }
 
 export default async function handler(req, res) {
-  // CORS headers — required when the function is called from a browser
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
+
+  // Health check — visit /api/parse-signup in a browser to confirm deployment
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      status: 'ok',
+      keyConfigured: !!process.env.ANTHROPIC_API_KEY,
+    })
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
