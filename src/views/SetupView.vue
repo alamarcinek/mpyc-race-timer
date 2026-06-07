@@ -176,9 +176,21 @@ async function handlePhoto(file) {
           <thead><tr><th>Name</th><th>Sail #</th><th>Class</th><th></th></tr></thead>
           <tbody>
             <tr v-for="c in store.competitors" :key="c.id" class="comp-row">
-              <td>{{ c.name }}</td>
-              <td class="sail-num">{{ c.sail_no }}</td>
-              <td><span class="class-badge">{{ c.class }}</span></td>
+              <td>
+                <input class="inline-fi" :value="c.name" placeholder="Name"
+                       @change="store.updateCompetitor(c.id, { name: $event.target.value.trim() })" />
+              </td>
+              <td>
+                <input class="inline-fi sail-input" :value="c.sail_no" placeholder="—"
+                       inputmode="numeric"
+                       @change="store.updateCompetitor(c.id, { sail_no: $event.target.value.trim() })" />
+              </td>
+              <td>
+                <select class="inline-fs" :value="c.class"
+                        @change="store.updateCompetitor(c.id, { class: $event.target.value })">
+                  <option v-for="cls in CLASSES" :key="cls">{{ cls }}</option>
+                </select>
+              </td>
               <td>
                 <button class="btn btn-ghost btn-sm" style="color:var(--warn)"
                         @click="removeComp(c.id)">✕</button>
@@ -200,3 +212,25 @@ async function handlePhoto(file) {
     </button>
   </div>
 </template>
+
+<style scoped>
+.inline-fi {
+  background: none; border: none; border-bottom: 1px solid transparent;
+  color: var(--text); font: 600 15px/1.3 var(--sans);
+  width: 100%; min-width: 80px; padding: 4px 2px; outline: none;
+  -webkit-user-select: text; user-select: text;
+  transition: border-color .15s;
+}
+.inline-fi:focus { border-bottom-color: var(--accent); }
+.sail-input { font-family: var(--mono); color: var(--blue); min-width: 60px; }
+
+.inline-fs {
+  background: none; border: none; border-bottom: 1px solid transparent;
+  color: var(--blue); font: 700 12px/1 var(--sans);
+  text-transform: uppercase; letter-spacing: .5px;
+  padding: 4px 2px; outline: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  transition: border-color .15s;
+}
+.inline-fs:focus { border-bottom-color: var(--accent); }
+</style>

@@ -26,10 +26,17 @@ export const useCompetitorsStore = defineStore('competitors', () => {
     return record
   }
 
+  function updateCompetitor(id, patch) {
+    const idx = competitors.value.findIndex(c => c.id === id)
+    if (idx < 0) return
+    competitors.value[idx] = { ...competitors.value[idx], ...patch }
+    persist()
+  }
+
   function deleteCompetitor(id) {
     competitors.value = competitors.value.filter(c => c.id !== id)
     persist()
   }
 
-  return { competitors, load, addCompetitor, deleteCompetitor }
+  return { competitors, load, addCompetitor, updateCompetitor, deleteCompetitor }
 })
