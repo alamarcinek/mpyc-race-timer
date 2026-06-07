@@ -184,6 +184,28 @@ PRs welcome. The codebase is intentionally minimal — no TypeScript, no test su
 
 ---
 
+## Changelog
+
+### 2026-06-07
+- Added voice note recording during races (offline, IndexedDB)
+- Added AI transcription of voice notes via Anthropic Claude (`/api/transcribe`)
+- Improved audio beeps: sine waves with ADSR envelopes replacing harsh square waves (pip, dong, horn sounds)
+
+### 2026-05-xx
+- Replaced Supabase with localStorage — app now works 100% offline with no account required
+- Added AI signup sheet scan via `/api/parse-signup` Vercel serverless function (client-side image compression to stay under Vercel's 4.5 MB body limit)
+- Fixed SPA routing on Vercel (`vercel.json` rewrites)
+- Added PWA wake lock to keep screen on during races
+- Deployed to Vercel with GitHub Actions CI for GitHub Pages
+
+### Initial release
+- Race start sequence (1–5 min configurable) with countdown audio and haptic feedback
+- Finish time recording with draggable results table
+- Sailwave-compatible CSV export (single race and all races)
+- Race history view
+
+---
+
 ## License
 
 MIT
