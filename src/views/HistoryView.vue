@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRacesStore } from '@/stores/races.js'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useUIStore } from '@/stores/ui.js'
-import { getAllRecordings, deleteRecording } from '@/lib/recordings.js'
+import { getAllRecordings, deleteRecording, updateRecording } from '@/lib/recordings.js'
 
 const raceStore = useRacesStore()
 const compStore = useCompetitorsStore()
@@ -49,6 +49,36 @@ function removeRecording(id) {
 
 function fmtRecTime(ts) {
   return new Date(ts).toLocaleString('en-NZ', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+}
+
+const transcribingId = ref(null)
+
+async function transcribeRecording(rec) {
+  if (transcribingId.value) return
+  transcribingId.value = rec.id
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(rec.blob)
+    })
+    const resp = await fetch('/api/transcribe', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ audio: base64, mimeType: rec.mimeType }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`)
+    await updateRecording(rec.id, { transcript: data.transcript })
+    const idx = recordings.value.findIndex(r => r.id === rec.id)
+    if (idx >= 0) recordings.value[idx] = { ...recordings.value[idx], transcript: data.transcript }
+    ui.toast('Transcription saved')
+  } catch (err) {
+    ui.toast(err.message || 'Transcription failed', false)
+  } finally {
+    transcribingId.value = null
+  }
 }
 
 onUnmounted(() => { audioPlayer?.pause(); audioPlayer = null })
@@ -196,10 +226,16 @@ function exportAll() {
             {{ fmtTime(rec.duration) }}
             <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
           </div>
+          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
         </div>
         <div class="rec-actions">
           <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
             {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
+          </button>
+          <button class="btn btn-ghost btn-sm"
+                  :disabled="!!transcribingId"
+                  @click="transcribeRecording(rec)">
+            {{ transcribingId === rec.id ? '…' : '✦ Transcribe' }}
           </button>
           <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
         </div>
@@ -260,4 +296,8 @@ function exportAll() {
 .rec-time { font: 600 14px/1.3 var(--sans); }
 .rec-meta { font: 500 12px/1 var(--sans); color: var(--text2); margin-top: 3px; }
 .rec-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rec-transcript {
+  font: 400 12px/1.5 var(--sans); color: var(--text2);
+  margin-top: 6px; font-style: italic;
+}
 </style>
