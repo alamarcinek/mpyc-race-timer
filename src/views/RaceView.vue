@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useRacesStore } from '@/stores/races.js'
 import { useUIStore } from '@/stores/ui.js'
+import { saveRecording } from '@/lib/recordings.js'
 
 defineOptions({ name: 'RaceView' })
 
@@ -131,7 +132,69 @@ onActivated(() => {
   }
 })
 
-onUnmounted(() => clearInterval(timerInterval))
+// ── Voice notes
+const isRecording  = ref(false)
+const recDuration  = ref(0)
+const recSupported = !!navigator.mediaDevices?.getUserMedia
+const MAX_REC_SECS = 120
+let mediaRecorder  = null
+let recChunks      = []
+let recTimer       = null
+let recStart       = null
+
+async function startRecording() {
+  if (!recSupported) { ui.toast('Microphone not available', false); return }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+    mediaRecorder  = new MediaRecorder(stream, { mimeType })
+    recChunks      = []
+    recStart       = Date.now()
+    recDuration.value = 0
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data) }
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop())
+      const blob     = new Blob(recChunks, { type: mediaRecorder.mimeType })
+      const duration = Math.round((Date.now() - recStart) / 1000)
+      await saveRecording({
+        id:          crypto.randomUUID(),
+        timestamp:   recStart,
+        duration,
+        mimeType:    mediaRecorder.mimeType,
+        blob,
+        raceNumber:  phase.value !== 'idle' ? raceNumber : null,
+      })
+      ui.toast(`Note saved (${fmtTime(duration)})`)
+      haptic(60)
+    }
+
+    mediaRecorder.start(500)
+    isRecording.value = true
+    haptic(40)
+    recTimer = setInterval(() => {
+      recDuration.value++
+      if (recDuration.value >= MAX_REC_SECS) stopRecording()
+    }, 1000)
+  } catch {
+    ui.toast('Microphone access denied', false)
+  }
+}
+
+function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return
+  clearInterval(recTimer)
+  mediaRecorder.stop()
+  isRecording.value = false
+  recDuration.value = 0
+}
+
+function toggleRecording() {
+  if (isRecording.value) stopRecording()
+  else startRecording()
+}
+
+onUnmounted(() => { clearInterval(timerInterval); stopRecording() })
 
 // ── Computed display
 const displayLabel = computed(() => {
@@ -437,6 +500,12 @@ function fmtTime(secs) {
     </div>
   </div>
 
+  <!-- Floating voice note button -->
+  <button v-if="recSupported" class="btn-rec" :class="{ active: isRecording }" @click="toggleRecording">
+    <span class="rec-dot" />
+    <span class="rec-label">{{ isRecording ? fmtTime(recDuration) : 'NOTE' }}</span>
+  </button>
+
   <!-- Add Sailor modal -->
   <div class="modal-bg" :class="{ open: addSailorOpen }" @click.self="addSailorOpen = false">
     <div class="modal">
@@ -467,4 +536,23 @@ function fmtTime(secs) {
 
 <style scoped>
 .race-controls { display: flex; flex-direction: column; gap: var(--tap-gap); padding: 8px 0; }
+
+.btn-rec {
+  position: fixed; right: 16px; bottom: 90px; z-index: 50;
+  width: 68px; height: 68px; border-radius: 50%;
+  background: var(--bg2); border: 3px solid var(--border);
+  color: var(--text2); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  touch-action: manipulation; transition: all .15s;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.btn-rec.active {
+  background: rgba(255,92,92,.15); border-color: var(--warn); color: var(--warn);
+}
+.rec-dot {
+  width: 12px; height: 12px; border-radius: 50%; background: var(--text2);
+  transition: background .15s;
+}
+.btn-rec.active .rec-dot { background: var(--warn); animation: pulse 1s infinite; }
+.rec-label { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; }
 </style>

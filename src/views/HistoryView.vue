@@ -1,12 +1,57 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRacesStore } from '@/stores/races.js'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useUIStore } from '@/stores/ui.js'
+import { getAllRecordings, deleteRecording } from '@/lib/recordings.js'
 
 const raceStore = useRacesStore()
 const compStore = useCompetitorsStore()
 const ui        = useUIStore()
+
+// ── Voice notes
+const recordings  = ref([])
+const playingId   = ref(null)
+let   audioPlayer = null
+
+async function loadRecordings() {
+  recordings.value = await getAllRecordings()
+}
+
+function playRecording(rec) {
+  if (audioPlayer) {
+    audioPlayer.pause()
+    URL.revokeObjectURL(audioPlayer.src)
+    audioPlayer = null
+    if (playingId.value === rec.id) { playingId.value = null; return }
+  }
+  const url    = URL.createObjectURL(rec.blob)
+  audioPlayer  = new Audio(url)
+  playingId.value = rec.id
+  audioPlayer.play()
+  audioPlayer.onended = () => {
+    URL.revokeObjectURL(url)
+    playingId.value = null
+    audioPlayer = null
+  }
+}
+
+function removeRecording(id) {
+  ui.showConfirm('Delete Note', 'Delete this voice note?', async () => {
+    if (playingId.value === id) {
+      audioPlayer?.pause(); audioPlayer = null; playingId.value = null
+    }
+    await deleteRecording(id)
+    recordings.value = recordings.value.filter(r => r.id !== id)
+    ui.toast('Note deleted', false)
+  })
+}
+
+function fmtRecTime(ts) {
+  return new Date(ts).toLocaleString('en-NZ', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+}
+
+onUnmounted(() => { audioPlayer?.pause(); audioPlayer = null })
 
 const detailOpen    = ref(false)
 const detailRace    = ref(null)
@@ -16,6 +61,7 @@ const detailLoading = ref(false)
 onMounted(async () => {
   await compStore.load()
   await raceStore.loadRaces()
+  await loadRecordings()
 })
 
 function haptic(ms = 30) { try { navigator.vibrate?.(ms) } catch {} }
@@ -139,6 +185,26 @@ function exportAll() {
             @click="exportAll">
       ⬇ Export All — Sailwave CSV
     </button>
+
+    <!-- Voice notes -->
+    <div v-if="recordings.length" class="card" style="margin-top:20px">
+      <div class="card-title">🎙 Voice Notes ({{ recordings.length }})</div>
+      <div v-for="rec in recordings" :key="rec.id" class="rec-row">
+        <div class="rec-info">
+          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
+          <div class="rec-meta">
+            {{ fmtTime(rec.duration) }}
+            <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
+          </div>
+        </div>
+        <div class="rec-actions">
+          <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
+            {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Race detail bottom sheet -->
@@ -182,3 +248,16 @@ function exportAll() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.rec-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid rgba(28,64,104,.4);
+  gap: 12px;
+}
+.rec-row:last-child { border-bottom: none; }
+.rec-info { flex: 1; min-width: 0; }
+.rec-time { font: 600 14px/1.3 var(--sans); }
+.rec-meta { font: 500 12px/1 var(--sans); color: var(--text2); margin-top: 3px; }
+.rec-actions { display: flex; gap: 8px; flex-shrink: 0; }
+</style>
