@@ -53,18 +53,60 @@ function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   if (audioCtx.state === 'suspended') audioCtx.resume()
 }
-function beep(duration = 400, freq = 880) {
+
+function tone(freq, duration, gainPeak = 0.5) {
   try {
     initAudio()
+    const now  = audioCtx.currentTime
     const osc  = audioCtx.createOscillator()
     const gain = audioCtx.createGain()
     osc.connect(gain); gain.connect(audioCtx.destination)
-    osc.frequency.value = freq; osc.type = 'square'
-    gain.gain.value = 0.35
-    osc.start(); osc.stop(audioCtx.currentTime + duration / 1000)
+    osc.type = 'sine'
+    osc.frequency.value = freq
+    gain.gain.setValueAtTime(0, now)
+    gain.gain.linearRampToValueAtTime(gainPeak, now + 0.008)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
+    osc.start(now)
+    osc.stop(now + duration + 0.02)
   } catch {}
 }
-function longBeep() { beep(800, 1000); hapticPat([200, 100, 200, 100, 200]) }
+
+// Short pip for countdown seconds 5-1
+function pip() { tone(1320, 0.12, 0.6); haptic(40) }
+
+// Warm dong for each minute mark
+function dong() {
+  tone(660, 0.6, 0.55)
+  tone(880, 0.3, 0.2)
+  haptic(120)
+}
+
+// Foghorn blast for race start — three layered sines
+function horn() {
+  try {
+    initAudio()
+    const now = audioCtx.currentTime
+    ;[220, 330, 440].forEach((freq, i) => {
+      const osc  = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.connect(gain); gain.connect(audioCtx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      const peak = [0.5, 0.35, 0.2][i]
+      gain.gain.setValueAtTime(0, now)
+      gain.gain.linearRampToValueAtTime(peak, now + 0.06)
+      gain.gain.setValueAtTime(peak, now + 1.1)
+      gain.gain.linearRampToValueAtTime(0, now + 1.6)
+      osc.start(now)
+      osc.stop(now + 1.7)
+    })
+  } catch {}
+  hapticPat([300, 80, 300, 80, 400])
+}
+
+// kept for startRace() first-touch beep
+function beep() { tone(880, 0.25, 0.4) }
+function longBeep() { horn() }
 
 // ── Init / re-activate
 function initRace() {
@@ -133,7 +175,7 @@ function startRace() {
   raceStartTime = null
   lastBeepSec   = -1
   displayMs.value = seqMinutes.value * 60 * 1000
-  beep(300, 880); haptic(100)
+  beep(); haptic(100)
   timerInterval = setInterval(tick, 50)
 }
 
@@ -144,10 +186,10 @@ function tick() {
     const totalSecs  = Math.ceil(remaining / 1000)
 
     if (totalSecs > 0 && totalSecs % 60 === 0 && totalSecs !== lastBeepSec) {
-      lastBeepSec = totalSecs; beep(500, 880); haptic(150)
+      lastBeepSec = totalSecs; dong()
     }
     if (totalSecs <= 5 && totalSecs > 0 && totalSecs !== lastBeepSec) {
-      lastBeepSec = totalSecs; beep(100, 1200); haptic(50)
+      lastBeepSec = totalSecs; pip()
     }
     if (remaining <= 0) {
       phase.value   = 'racing'
