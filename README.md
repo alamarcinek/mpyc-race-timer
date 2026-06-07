@@ -13,7 +13,8 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 - **Race timer** — tap RECORD FINISH for each boat in order; finish times are decoupled from the start list so you can reorder sailors freely
 - **Draggable results** — drag rows during or after racing to match finish order to sailors
 - **Race history** — browse saved races, view full results, export Sailwave-compatible CSV
-- **100% offline** — all data stored in localStorage, no backend required. Works on the water with no signal
+- **Voice notes** — record audio notes during a race (works fully offline); transcribe them later via AI when back on land
+- **100% offline** — all data stored locally (localStorage + IndexedDB), no backend required. Works on the water with no signal
 - **PWA** — installable on iOS and Android, runs standalone
 - **Wake lock** — screen stays on while the timer is running
 
@@ -29,7 +30,8 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 | Build | Vite 8 |
 | PWA | vite-plugin-pwa + Workbox |
 | Data storage | localStorage (no backend, no account needed) |
-| AI vision | Anthropic Claude API via Vercel serverless function |
+| Audio storage | IndexedDB (voice note blobs) |
+| AI vision + audio | Anthropic Claude API via Vercel serverless functions |
 | Hosting | Vercel (or GitHub Pages) |
 
 ---
@@ -38,16 +40,19 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 
 ```
 api/
-└── parse-signup.js     # Vercel serverless function — proxies Anthropic API
+├── parse-signup.js     # Vercel serverless function — AI signup sheet scan
+└── transcribe.js       # Vercel serverless function — AI voice note transcription
 src/
+├── lib/
+│   └── recordings.js   # IndexedDB helpers for audio blob storage
 ├── stores/
 │   ├── competitors.js  # Competitor CRUD backed by localStorage
 │   ├── races.js        # Race + result CRUD backed by localStorage
 │   └── ui.js           # Toast, confirm dialog, wake lock, save status
 ├── views/
 │   ├── SetupView.vue   # Add competitors manually or via AI photo scan
-│   ├── RaceView.vue    # Countdown, race timer, finish recording
-│   └── HistoryView.vue # Race history, CSV export
+│   ├── RaceView.vue    # Countdown, race timer, finish recording, voice notes
+│   └── HistoryView.vue # Race history, CSV export, voice note playback + transcription
 ├── router/index.js
 └── App.vue             # Shell, nav, global styles
 ```
@@ -59,6 +64,10 @@ src/
 | `mpyc_competitors` | JSON array of competitor objects |
 | `mpyc_races` | JSON array of race objects |
 | `mpyc_results` | JSON array of result objects (flat, keyed by `race_id`) |
+
+### IndexedDB
+
+Voice note audio blobs are stored in IndexedDB (`mpyc_audio` database, `recordings` store) because localStorage cannot hold binary data. Each record contains the audio blob, duration, timestamp, optional race number, and optional transcript.
 
 ---
 
@@ -80,7 +89,7 @@ npm install
 Create a `.env` file in the project root:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...   # optional — enables AI photo scan
+ANTHROPIC_API_KEY=sk-ant-...   # optional — enables AI photo scan and voice transcription
 ```
 
 ```bash
@@ -89,7 +98,7 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-> **Note:** the photo scan calls `/api/parse-signup` which only runs on Vercel. In local dev the scan button will return an error unless you run `vercel dev` instead of `npm run dev`.
+> **Note:** the photo scan (`/api/parse-signup`) and voice transcription (`/api/transcribe`) only run on Vercel. In local dev these features will return errors unless you run `vercel dev` instead of `npm run dev`.
 
 ---
 
@@ -98,9 +107,10 @@ Open `http://localhost:5173`.
 ### Vercel (recommended)
 
 1. Fork this repo and import it into [Vercel](https://vercel.com)
-2. Add one environment variable under **Settings → Environments → Production**:
-   - `ANTHROPIC_API_KEY` — your Anthropic key (server-side only, never sent to the browser)
+2. Add one environment variable under **Settings → Environment Variables**:
+   - `ANTHROPIC_API_KEY` — your key from [console.anthropic.com](https://console.anthropic.com) (server-side only, never sent to the browser). Enable for all environments (Production, Preview, Development).
 3. Deploy — `vercel.json` handles SPA routing and the `api/` folder is auto-deployed as serverless functions
+4. On subsequent deploys, env var changes take effect automatically
 
 ### GitHub Pages
 
@@ -113,11 +123,17 @@ The included Actions workflow (`.github/workflows/deploy.yml`) builds and deploy
 
 ---
 
-## How the AI Scan Works
+## AI Features
 
-The Setup page lets you photograph a paper signup sheet. The image is sent to `/api/parse-signup` — a Vercel serverless function that forwards it to the Anthropic Claude API and returns a parsed list of competitors. The API key lives only on the server and is never exposed to the browser.
+Both AI features require `ANTHROPIC_API_KEY` set in Vercel. The key lives only on the server and is never sent to the browser. All other app features work fully offline without it.
 
-For clubs that don't need the scan feature, the app works entirely without an API key.
+### Signup sheet scan
+
+The Setup page lets you photograph a paper signup sheet. The image is compressed client-side then sent to `/api/parse-signup`, which forwards it to the Claude vision API and returns a parsed list of competitors (name, sail number, class).
+
+### Voice note transcription
+
+During a race, tap the **REC** button to record audio notes (mic permission required). Notes are saved to IndexedDB and work fully offline. Back on land, open **History → Voice Notes** and tap **✦ Transcribe** on any note — it sends the audio to `/api/transcribe`, which uses Claude's audio understanding to return a transcript. The transcript is saved back to IndexedDB alongside the recording.
 
 ---
 
