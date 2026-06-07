@@ -7,7 +7,15 @@ const route  = useRoute()
 const router = useRouter()
 const ui     = useUIStore()
 
+const DATA_VERSION = '1'
+
 onMounted(() => {
+  if (localStorage.getItem('mpyc_version') !== DATA_VERSION) {
+    localStorage.removeItem('mpyc_competitors')
+    localStorage.removeItem('mpyc_races')
+    localStorage.removeItem('mpyc_results')
+    localStorage.setItem('mpyc_version', DATA_VERSION)
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && ui.wakeActive) ui.requestWakeLock()
   })
