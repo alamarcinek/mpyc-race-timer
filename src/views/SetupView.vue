@@ -54,23 +54,55 @@ function goToRace() {
   router.push('/race')
 }
 
+// ── Resize + compress image to stay under Vercel's 4.5 MB platform body limit
+function compressImage(file, maxWidth = 1600, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale  = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.round(img.width  * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Canvas compression failed')), 'image/jpeg', quality)
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
+function toBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload  = () => resolve(r.result.split(',')[1])
+    r.onerror = reject
+    r.readAsDataURL(blob)
+  })
+}
+
 // ── Photo scan — proxied through /api/parse-signup (keeps API key server-side)
 async function handlePhoto(file) {
   if (!file) return
   parseStatus.value = { type: 'loading', text: '⏳ Analysing signup sheet…' }
   try {
-    const base64 = await toBase64(file)
+    const compressed = await compressImage(file)
+    const base64 = await toBase64(compressed)
     const resp = await fetch('/api/parse-signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64, mediaType: file.type || 'image/jpeg' }),
-    }).catch(() => { throw new Error('Cannot reach /api/parse-signup — is ANTHROPIC_API_KEY set in Vercel?') })
+      body: JSON.stringify({ base64, mediaType: 'image/jpeg' }),
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}))
+      throw new Error(err.error || `Server error ${resp.status}`)
+    }
     const data = await resp.json()
-    if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`)
     const parsed = JSON.parse(data.text.replace(/```json|```/g, '').trim())
     if (Array.isArray(parsed) && parsed.length) {
       for (const p of parsed) {
-        await store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })
+        store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })
       }
       ui.markSaved()
       parseStatus.value = { type: 'success', text: `✓ Found ${parsed.length} competitor${parsed.length > 1 ? 's' : ''}` }
@@ -82,15 +114,6 @@ async function handlePhoto(file) {
     parseStatus.value = { type: 'error', text: `✗ ${err.message || 'Scan failed'} — add competitors manually.` }
     console.error(err)
   }
-}
-
-function toBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader()
-    r.onload  = () => res(r.result.split(',')[1])
-    r.onerror = rej
-    r.readAsDataURL(file)
-  })
 }
 </script>
 
