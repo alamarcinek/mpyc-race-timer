@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useRacesStore } from '@/stores/races.js'
 import { useUIStore } from '@/stores/ui.js'
-import { saveRecording } from '@/lib/recordings.js'
+import { saveRecording, getAllRecordings, deleteRecording, updateRecording } from '@/lib/recordings.js'
 
 defineOptions({ name: 'RaceView' })
 
@@ -122,6 +122,7 @@ onMounted(async () => {
   await compStore.load()
   await raceStore.loadRaces()
   if (phase.value === 'idle') initRace()
+  await loadRecordings()
 })
 
 onActivated(() => {
@@ -129,6 +130,7 @@ onActivated(() => {
     initRace() // instant from cache
     compStore.load().then(() => { if (phase.value === 'idle') initRace() })
     raceStore.loadRaces().then(() => { raceNumber = raceStore.races.length + 1 })
+    loadRecordings()
   }
 })
 
@@ -141,6 +143,77 @@ let mediaRecorder  = null
 let recChunks      = []
 let recTimer       = null
 let recStart       = null
+
+// ── Voice note playback & transcription
+const recordings     = ref([])
+const playingId      = ref(null)
+const transcribingId = ref(null)
+let   audioPlayer   = null
+
+async function loadRecordings() {
+  recordings.value = await getAllRecordings()
+}
+
+function playRecording(rec) {
+  if (audioPlayer) {
+    audioPlayer.pause()
+    URL.revokeObjectURL(audioPlayer.src)
+    audioPlayer = null
+    if (playingId.value === rec.id) { playingId.value = null; return }
+  }
+  const url = URL.createObjectURL(rec.blob)
+  audioPlayer = new Audio(url)
+  playingId.value = rec.id
+  audioPlayer.play()
+  audioPlayer.onended = () => {
+    URL.revokeObjectURL(url)
+    playingId.value = null
+    audioPlayer = null
+  }
+}
+
+function removeRecording(id) {
+  ui.showConfirm('Delete Note', 'Delete this voice note?', async () => {
+    if (playingId.value === id) {
+      audioPlayer?.pause(); audioPlayer = null; playingId.value = null
+    }
+    await deleteRecording(id)
+    recordings.value = recordings.value.filter(r => r.id !== id)
+    ui.toast('Note deleted', false)
+  })
+}
+
+async function transcribeRecording(rec) {
+  if (transcribingId.value) return
+  transcribingId.value = rec.id
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(rec.blob)
+    })
+    const resp = await fetch('/api/transcribe', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ audio: base64, mimeType: rec.mimeType }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`)
+    await updateRecording(rec.id, { transcript: data.transcript })
+    const idx = recordings.value.findIndex(r => r.id === rec.id)
+    if (idx >= 0) recordings.value[idx] = { ...recordings.value[idx], transcript: data.transcript }
+    ui.toast('Transcription saved')
+  } catch (err) {
+    ui.toast(err.message || 'Transcription failed', false)
+  } finally {
+    transcribingId.value = null
+  }
+}
+
+function fmtRecTime(ts) {
+  return new Date(ts).toLocaleString('en-NZ', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+}
 
 async function startRecording() {
   if (!recSupported) { ui.toast('Microphone not available', false); return }
@@ -167,6 +240,7 @@ async function startRecording() {
       })
       ui.toast(`Note saved (${fmtTime(duration)})`)
       haptic(60)
+      loadRecordings()
     }
 
     mediaRecorder.start(500)
@@ -194,7 +268,7 @@ function toggleRecording() {
   else startRecording()
 }
 
-onUnmounted(() => { clearInterval(timerInterval); stopRecording() })
+onUnmounted(() => { clearInterval(timerInterval); stopRecording(); audioPlayer?.pause(); audioPlayer = null })
 
 // ── Computed display
 const displayLabel = computed(() => {
@@ -280,6 +354,9 @@ function cancelRace() {
 function recordFinish() {
   if (debounce('finish', 400)) return
   if (phase.value !== 'racing') return
+  if (finishTimes.value.length >= raceOrder.value.length) {
+    ui.toast('All sailors have finished', false); return
+  }
   const elapsed = Math.floor((Date.now() - raceStartTime) / 1000)
   finishTimes.value.push(elapsed)
   beep(120, 1400); haptic(60)
@@ -453,6 +530,32 @@ function fmtTime(secs) {
       </div>
     </div>
 
+    <!-- Voice Notes -->
+    <div v-if="recordings.length" class="card">
+      <div class="card-title">🎙 Voice Notes ({{ recordings.length }})</div>
+      <div v-for="rec in recordings" :key="rec.id" class="rec-row">
+        <div class="rec-info">
+          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
+          <div class="rec-meta">
+            {{ fmtTime(rec.duration) }}
+            <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
+          </div>
+          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
+        </div>
+        <div class="rec-actions">
+          <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
+            {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
+          </button>
+          <button class="btn btn-ghost btn-sm"
+                  :disabled="!!transcribingId"
+                  @click="transcribeRecording(rec)">
+            {{ transcribingId === rec.id ? '…' : '✦' }}
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Results table -->
     <div v-if="raceOrder.length" class="card">
       <div class="card-title">Results — drag rows to reorder</div>
@@ -555,4 +658,15 @@ function fmtTime(secs) {
 }
 .btn-rec.active .rec-dot { background: var(--warn); animation: pulse 1s infinite; }
 .rec-label { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; }
+
+.rec-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid rgba(28,64,104,.4); gap: 12px;
+}
+.rec-row:last-child { border-bottom: none; }
+.rec-info { flex: 1; min-width: 0; }
+.rec-time { font: 600 14px/1.3 var(--sans); }
+.rec-meta { font: 500 12px/1 var(--sans); color: var(--text2); margin-top: 3px; }
+.rec-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rec-transcript { font: 400 12px/1.5 var(--sans); color: var(--text2); margin-top: 6px; font-style: italic; }
 </style>
