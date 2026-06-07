@@ -1,7 +1,6 @@
 <script setup>
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { onMounted } from 'vue'
-import { setupOnlineSync } from '@/lib/sync.js'
 import { useUIStore } from '@/stores/ui.js'
 
 const route  = useRoute()
@@ -9,7 +8,6 @@ const router = useRouter()
 const ui     = useUIStore()
 
 onMounted(() => {
-  setupOnlineSync()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && ui.wakeActive) ui.requestWakeLock()
   })
@@ -24,10 +22,7 @@ function nav(path) {
 <template>
   <!-- Status bar -->
   <div class="status-bar">
-    <span>
-      <span class="indicator" :class="ui.onLine ? 'ok' : 'warn'" />
-      {{ ui.saveStatus }}
-    </span>
+    <span>{{ ui.saveStatus }}</span>
     <span>{{ ui.wakeLockLabel }}</span>
   </div>
 

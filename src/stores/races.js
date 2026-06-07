@@ -1,80 +1,62 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '@/lib/supabase.js'
-import { getAll, getByIndex, upsert, enqueueSyncOp } from '@/lib/db.js'
+
+const RACES_KEY   = 'mpyc_races'
+const RESULTS_KEY = 'mpyc_results'
 
 export const useRacesStore = defineStore('races', () => {
-  const races = ref([])
-  const results = ref([]) // results for the currently active race
+  const races   = ref([])
+  const results = ref([])
 
-  async function loadRaces() {
-    races.value = await getAll('races')
-    if (navigator.onLine) {
-      const { data } = await supabase.from('races').select('*').order('race_date', { ascending: false })
-      if (data) {
-        for (const row of data) await upsert('races', row)
-        races.value = data
-      }
-    }
+  function loadRaces() {
+    races.value = JSON.parse(localStorage.getItem(RACES_KEY) || '[]')
   }
 
-  async function loadResultsForRace(raceId) {
-    results.value = await getByIndex('race_results', 'race_id', raceId)
-    if (navigator.onLine) {
-      const { data } = await supabase.from('race_results').select('*').eq('race_id', raceId)
-      if (data) {
-        for (const row of data) await upsert('race_results', row)
-        results.value = data
-      }
-    }
+  function loadResultsForRace(raceId) {
+    const all = JSON.parse(localStorage.getItem(RESULTS_KEY) || '[]')
+    results.value = all.filter(r => r.race_id === raceId)
   }
 
-  async function createRace(payload) {
+  function createRace(payload) {
     const record = {
-      id: crypto.randomUUID(),
+      id:          crypto.randomUUID(),
       race_number: payload.race_number,
-      race_date: payload.race_date,
-      start_time: payload.start_time,
+      race_date:   payload.race_date,
+      start_time:  payload.start_time,
       seq_minutes: payload.seq_minutes,
     }
-    await upsert('races', record)
-    if (navigator.onLine) {
-      await supabase.from('races').upsert(record)
-    } else {
-      await enqueueSyncOp({ action: 'upsert', table: 'races', record })
-    }
+    const all = JSON.parse(localStorage.getItem(RACES_KEY) || '[]')
+    all.unshift(record)
+    localStorage.setItem(RACES_KEY, JSON.stringify(all))
     races.value.unshift(record)
     return record
   }
 
-  async function saveResult(payload) {
+  function saveResult(payload) {
     const record = {
-      id: payload.id || crypto.randomUUID(),
-      race_id: payload.race_id,
-      competitor_id: payload.competitor_id,
-      position: payload.position,
+      id:              payload.id || crypto.randomUUID(),
+      race_id:         payload.race_id,
+      competitor_id:   payload.competitor_id,
+      position:        payload.position,
       elapsed_seconds: payload.elapsed_seconds,
-      dnf: payload.dnf ?? false,
+      dnf:             payload.dnf ?? false,
     }
-    await upsert('race_results', record)
-    if (navigator.onLine) {
-      await supabase.from('race_results').upsert(record)
-    } else {
-      await enqueueSyncOp({ action: 'upsert', table: 'race_results', record })
-    }
-    const i = results.value.findIndex((r) => r.id === record.id)
-    if (i >= 0) results.value[i] = record
-    else results.value.push(record)
+    const all = JSON.parse(localStorage.getItem(RESULTS_KEY) || '[]')
+    const i = all.findIndex(r => r.id === record.id)
+    if (i >= 0) all[i] = record; else all.push(record)
+    localStorage.setItem(RESULTS_KEY, JSON.stringify(all))
+
+    const j = results.value.findIndex(r => r.id === record.id)
+    if (j >= 0) results.value[j] = record; else results.value.push(record)
     return record
   }
 
-  async function deleteRace(id) {
-    // soft remove from local and remote
-    if (navigator.onLine) {
-      await supabase.from('race_results').delete().eq('race_id', id)
-      await supabase.from('races').delete().eq('id', id)
-    }
-    races.value = races.value.filter((r) => r.id !== id)
+  function deleteRace(id) {
+    const allResults = JSON.parse(localStorage.getItem(RESULTS_KEY) || '[]')
+    localStorage.setItem(RESULTS_KEY, JSON.stringify(allResults.filter(r => r.race_id !== id)))
+    const allRaces = JSON.parse(localStorage.getItem(RACES_KEY) || '[]')
+    localStorage.setItem(RACES_KEY, JSON.stringify(allRaces.filter(r => r.id !== id)))
+    races.value = races.value.filter(r => r.id !== id)
   }
 
   return { races, results, loadRaces, loadResultsForRace, createRace, saveResult, deleteRace }

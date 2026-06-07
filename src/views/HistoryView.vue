@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import { useRacesStore } from '@/stores/races.js'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useUIStore } from '@/stores/ui.js'
-import { getByIndex } from '@/lib/db.js'
 
 const raceStore = useRacesStore()
 const compStore = useCompetitorsStore()
@@ -97,11 +96,12 @@ async function exportDetail() {
   dlCSV(raceCSV(detailRace.value, detailResults.value), `MPYC_Race${detailRace.value.race_number}_${detailRace.value.race_date}.csv`)
 }
 
-async function exportAll() {
+function exportAll() {
   if (!raceStore.races.length) { ui.toast('No races yet', false); return }
+  const allResults = JSON.parse(localStorage.getItem('mpyc_results') || '[]')
   let csv = 'raceno,class,sailno,HelmName,start,elapsed\n'
   for (const race of raceStore.races) {
-    const results = await getByIndex('race_results', 'race_id', race.id)
+    const results = allResults.filter(r => r.race_id === race.id)
     const start   = race.start_time || '00:00:00'
     results.forEach(r => {
       const elapsed = r.dnf ? 'DNF' : fmtHMS(r.elapsed_seconds)

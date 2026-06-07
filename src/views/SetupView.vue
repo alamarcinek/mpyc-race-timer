@@ -19,7 +19,6 @@ const addClass  = ref('ILCA 7')
 const photoInput  = ref(null)
 const parseStatus = ref(null) // null | {type:'loading'|'success'|'error', text:''}
 
-const hasKey = !!import.meta.env.VITE_ANTHROPIC_API_KEY
 
 onMounted(() => store.load())
 
@@ -55,37 +54,20 @@ function goToRace() {
   router.push('/race')
 }
 
-// ── Photo scan — direct fetch avoids SDK's Node.js built-in dependencies in the browser
+// ── Photo scan — proxied through /api/parse-signup (keeps API key server-side)
 async function handlePhoto(file) {
   if (!file) return
-  if (!hasKey) { ui.toast('Add VITE_ANTHROPIC_API_KEY to .env', false); return }
   parseStatus.value = { type: 'loading', text: '⏳ Analysing signup sheet…' }
   try {
     const base64 = await toBase64(file)
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('/api/parse-signup', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
-            { type: 'text', text: 'Parse this sailing race signup sheet. Extract each competitor\'s name, sail number, and class (ILCA 4, ILCA 6, ILCA 7, or Other). Return ONLY a valid JSON array, no markdown or backticks. Format: [{"name":"John Smith","sailNo":"209876","class":"ILCA 7"}]. Use "Unknown" for unreadable fields. Return [] if unreadable.' },
-          ],
-        }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64, mediaType: file.type || 'image/jpeg' }),
     })
     const data = await resp.json()
-    if (!resp.ok) throw new Error(data.error?.message || `API error ${resp.status}`)
-    const text   = data.content?.map(c => c.text || '').join('') || '[]'
-    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
+    if (!resp.ok) throw new Error(data.error || `API error ${resp.status}`)
+    const parsed = JSON.parse(data.text.replace(/```json|```/g, '').trim())
     if (Array.isArray(parsed) && parsed.length) {
       for (const p of parsed) {
         await store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })

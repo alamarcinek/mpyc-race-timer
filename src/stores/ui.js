@@ -2,9 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useUIStore = defineStore('ui', () => {
-  const onLine = ref(navigator.onLine)
-  window.addEventListener('online',  () => { onLine.value = true })
-  window.addEventListener('offline', () => { onLine.value = false })
 
   // Save status
   const saveStatus = ref('Ready')
@@ -71,7 +68,7 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   return {
-    onLine, saveStatus, markSaved,
+    saveStatus, markSaved,
     toastMsg, toastType, toastVisible, toast,
     confirmOpen, confirmTitle, confirmMsg, showConfirm, doConfirm, cancelConfirm,
     wakeLockLabel, wakeActive, requestWakeLock, releaseWakeLock,
