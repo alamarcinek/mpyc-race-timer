@@ -64,9 +64,9 @@ async function handlePhoto(file) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ base64, mediaType: file.type || 'image/jpeg' }),
-    })
+    }).catch(() => { throw new Error('Cannot reach /api/parse-signup — is ANTHROPIC_API_KEY set in Vercel?') })
     const data = await resp.json()
-    if (!resp.ok) throw new Error(data.error || `API error ${resp.status}`)
+    if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`)
     const parsed = JSON.parse(data.text.replace(/```json|```/g, '').trim())
     if (Array.isArray(parsed) && parsed.length) {
       for (const p of parsed) {
