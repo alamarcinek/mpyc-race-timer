@@ -13,7 +13,7 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 - **Race timer** — tap RECORD FINISH for each boat in order; finish times are decoupled from the start list so you can reorder sailors freely
 - **Draggable results** — drag rows during or after racing to match finish order to sailors
 - **Race history** — browse saved races, view full results, export Sailwave-compatible CSV
-- **Offline-first** — IndexedDB stores everything locally; Supabase syncs when online. Works on the water with no signal
+- **100% offline** — all data stored in localStorage, no backend required. Works on the water with no signal
 - **PWA** — installable on iOS and Android, runs standalone
 - **Wake lock** — screen stays on while the timer is running
 
@@ -28,9 +28,8 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 | Router | Vue Router 5 (history mode) |
 | Build | Vite 8 |
 | PWA | vite-plugin-pwa + Workbox |
-| Backend | Supabase (Postgres + REST API) |
-| Offline store | IndexedDB (custom wrapper, no extra deps) |
-| AI vision | Anthropic Claude API (direct `fetch`, no SDK) |
+| Data storage | localStorage (no backend, no account needed) |
+| AI vision | Anthropic Claude API via Vercel serverless function |
 | Hosting | Vercel (or GitHub Pages) |
 
 ---
@@ -38,43 +37,28 @@ Live demo: [mpyc-race-timer.vercel.app](https://mpyc-race-timer.vercel.app)
 ## Project Structure
 
 ```
+api/
+└── parse-signup.js     # Vercel serverless function — proxies Anthropic API
 src/
-├── lib/
-│   ├── db.js           # IndexedDB wrapper (getAll, upsert, remove, sync queue)
-│   ├── supabase.js     # Supabase client
-│   └── sync.js         # Flush offline queue when back online
 ├── stores/
-│   ├── competitors.js  # Competitor CRUD, offline-first
-│   ├── races.js        # Race + result CRUD
+│   ├── competitors.js  # Competitor CRUD backed by localStorage
+│   ├── races.js        # Race + result CRUD backed by localStorage
 │   └── ui.js           # Toast, confirm dialog, wake lock, save status
 ├── views/
 │   ├── SetupView.vue   # Add competitors manually or via AI photo scan
 │   ├── RaceView.vue    # Countdown, race timer, finish recording
 │   └── HistoryView.vue # Race history, CSV export
 ├── router/index.js
-└── App.vue             # Shell, nav, global styles, online sync init
-supabase-schema.sql     # Run once to create tables + RLS policies
+└── App.vue             # Shell, nav, global styles
 ```
 
----
+### localStorage keys
 
-## Supabase Setup
-
-### 1. Create a project
-
-Go to [supabase.com](https://supabase.com), create a new project, and note your **Project URL** and **anon public key** from Settings → API.
-
-### 2. Run the schema
-
-Open the SQL Editor in your Supabase dashboard and paste the contents of [`supabase-schema.sql`](./supabase-schema.sql). This creates three tables:
-
-| Table | Purpose |
+| Key | Contents |
 |---|---|
-| `competitors` | Sailor name, sail number, class |
-| `races` | Race number, date, start time, sequence length |
-| `race_results` | Position, elapsed seconds, DNF flag — linked to race + competitor |
-
-RLS is enabled with open anon policies suitable for a trusted club network. Tighten these if you expose the app publicly.
+| `mpyc_competitors` | JSON array of competitor objects |
+| `mpyc_races` | JSON array of race objects |
+| `mpyc_results` | JSON array of result objects (flat, keyed by `race_id`) |
 
 ---
 
@@ -83,8 +67,7 @@ RLS is enabled with open anon policies suitable for a trusted club network. Tigh
 ### Prerequisites
 
 - Node 20+
-- A Supabase project (see above)
-- An Anthropic API key (optional — only needed for photo scan)
+- An Anthropic API key (optional — only needed for the AI photo scan feature)
 
 ### Setup
 
@@ -97,9 +80,7 @@ npm install
 Create a `.env` file in the project root:
 
 ```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_ANTHROPIC_API_KEY=sk-ant-...   # optional — enables AI photo scan
+ANTHROPIC_API_KEY=sk-ant-...   # optional — enables AI photo scan
 ```
 
 ```bash
@@ -108,6 +89,8 @@ npm run dev
 
 Open `http://localhost:5173`.
 
+> **Note:** the photo scan calls `/api/parse-signup` which only runs on Vercel. In local dev the scan button will return an error unless you run `vercel dev` instead of `npm run dev`.
+
 ---
 
 ## Deployment
@@ -115,16 +98,26 @@ Open `http://localhost:5173`.
 ### Vercel (recommended)
 
 1. Fork this repo and import it into [Vercel](https://vercel.com)
-2. Add the three environment variables under **Settings → Environments → Production**
-3. Deploy — `vercel.json` handles SPA routing automatically
+2. Add one environment variable under **Settings → Environments → Production**:
+   - `ANTHROPIC_API_KEY` — your Anthropic key (server-side only, never sent to the browser)
+3. Deploy — `vercel.json` handles SPA routing and the `api/` folder is auto-deployed as serverless functions
 
 ### GitHub Pages
 
 The included Actions workflow (`.github/workflows/deploy.yml`) builds and deploys on every push to `main`.
 
-1. Go to **Settings → Pages** and set Source to **GitHub Actions**
-2. Add the three env vars as repository secrets under **Settings → Secrets and variables → Actions**
-3. Push any change to trigger the first deploy — app will be live at `https://your-username.github.io/mpyc-race-timer/`
+> **Note:** GitHub Pages is static — the `/api/parse-signup` serverless function won't run there. All other features (timer, history, CSV export) work fully offline with no backend.
+
+1. Go to **Settings → Pages** and set Source to **Deploy from a branch → `gh-pages`**
+2. Push any change to trigger the first deploy — app will be live at `https://your-username.github.io/mpyc-race-timer/`
+
+---
+
+## How the AI Scan Works
+
+The Setup page lets you photograph a paper signup sheet. The image is sent to `/api/parse-signup` — a Vercel serverless function that forwards it to the Anthropic Claude API and returns a parsed list of competitors. The API key lives only on the server and is never exposed to the browser.
+
+For clubs that don't need the scan feature, the app works entirely without an API key.
 
 ---
 
@@ -152,12 +145,6 @@ raceOrder[1] → finishTimes[1]   # 2nd place sailor → 2nd recorded time
 ...
 raceOrder[n] → DNF              # no finish time recorded = DNF
 ```
-
----
-
-## Offline Behaviour
-
-All writes go to IndexedDB first. If Supabase is reachable, the write is mirrored immediately. If not, the operation is queued in a `sync_queue` IndexedDB store and replayed automatically the next time the device comes online. Reads always come from IndexedDB — the app never blocks on a network call.
 
 ---
 
