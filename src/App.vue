@@ -31,10 +31,6 @@ function nav(path) {
   <!-- Status bar -->
   <div class="status-bar">
     <span>{{ ui.saveStatus }}</span>
-    <span class="status-brand">
-      <img src="/icon.svg" class="status-logo" alt="" />
-      MPYC
-    </span>
     <span>{{ ui.wakeLockLabel }}</span>
   </div>
 
@@ -146,12 +142,6 @@ html, body {
   font: 600 11px/1 var(--mono); color: var(--text2);
   height: 32px;
 }
-.status-brand {
-  display: flex; align-items: center; gap: 5px;
-  font: 700 11px/1 var(--mono); color: var(--text);
-  letter-spacing: 1.5px;
-}
-.status-logo { width: 20px; height: 20px; border-radius: 5px; }
 .status-bar .indicator {
   width: 8px; height: 8px; border-radius: 50%;
   display: inline-block; margin-right: 5px; vertical-align: middle;
