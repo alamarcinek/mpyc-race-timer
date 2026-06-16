@@ -521,8 +521,15 @@ function fmtTime(secs) {
       </div>
     </div>
 
-    <!-- Finish chips -->
-    <div v-if="finishTimes.length" class="card">
+    <!-- Finish & save — sits directly below the table so it's always reachable -->
+    <button v-if="phase === 'racing' || finishTimes.length > 0"
+            class="btn btn-primary btn-xl btn-block" style="margin-top:12px"
+            @click="confirmFinish">
+      ✓ FINISH &amp; SAVE RACE
+    </button>
+
+    <!-- Finish times log — bottom of page for review / undo -->
+    <div v-if="finishTimes.length" class="card" style="margin-top:12px">
       <div class="card-title">Finish Times ({{ finishTimes.length }})</div>
       <div class="finish-strip">
         <span v-for="(t, i) in finishTimes" :key="i" class="finish-chip">
@@ -533,14 +540,9 @@ function fmtTime(secs) {
       </div>
     </div>
 
-    <!-- Finish & save -->
-    <div v-if="phase === 'racing' || finishTimes.length > 0" class="finish-save-row">
-      <button class="btn btn-primary btn-xl" style="flex:1" @click="confirmFinish">
-        ✓ FINISH &amp; SAVE RACE
-      </button>
-      <button v-if="phase === 'racing'" class="btn btn-ghost btn-sm" @click="cancelRace">
-        ✕ Cancel
-      </button>
+    <!-- Cancel — intentionally subtle, far from RECORD FINISH -->
+    <div v-if="phase === 'racing'" style="text-align:center;padding:16px 0 4px">
+      <button class="cancel-link" @click="cancelRace">Cancel race</button>
     </div>
 
   </div>
@@ -586,7 +588,11 @@ function fmtTime(secs) {
   border-bottom: 1px solid var(--border); margin-bottom: 12px;
 }
 .race-controls { display: flex; flex-direction: column; gap: var(--tap-gap); padding: 8px 0; }
-.finish-save-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.cancel-link {
+  background: none; border: none; color: var(--text2);
+  font: 500 13px/1 var(--sans); cursor: pointer; padding: 8px 16px;
+  text-decoration: underline; touch-action: manipulation;
+}
 
 .btn-rec {
   position: fixed; right: 16px; bottom: 90px; z-index: 50;
