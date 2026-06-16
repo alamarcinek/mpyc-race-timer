@@ -50,6 +50,7 @@ function clearAll() {
 }
 
 function goToRace() {
+  if (!store.competitors.length) { ui.toast('Add at least one sailor first', false); return }
   haptic(50)
   router.push('/race')
 }
@@ -205,9 +206,7 @@ async function handlePhoto(file) {
     </div>
 
     <!-- Go to race -->
-    <button class="btn btn-primary btn-xl btn-block"
-            :disabled="!store.competitors.length"
-            @click="goToRace">
+    <button class="btn btn-primary btn-xl btn-block" @click="goToRace">
       Proceed to Race →
     </button>
   </div>

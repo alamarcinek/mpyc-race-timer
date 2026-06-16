@@ -50,27 +50,25 @@ function removeRecording(id) {
 
 async function transcribeRecording(rec) {
   if (transcribingId.value) return
+  if (!rec.transcript) {
+    ui.toast('New recordings include a transcript automatically', false)
+    return
+  }
   transcribingId.value = rec.id
   try {
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload  = () => resolve(reader.result.split(',')[1])
-      reader.onerror = reject
-      reader.readAsDataURL(rec.blob)
-    })
     const resp = await fetch('/api/transcribe', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ audio: base64, mimeType: rec.mimeType }),
+      body:    JSON.stringify({ rawText: rec.transcript }),
     })
     const data = await resp.json()
     if (!resp.ok) throw new Error(data.error || `Server error ${resp.status}`)
     await updateRecording(rec.id, { transcript: data.transcript })
     const idx = recordings.value.findIndex(r => r.id === rec.id)
     if (idx >= 0) recordings.value[idx] = { ...recordings.value[idx], transcript: data.transcript }
-    ui.toast('Transcription saved')
+    ui.toast('Transcript refined')
   } catch (err) {
-    ui.toast(err.message || 'Transcription failed', false)
+    ui.toast(err.message || 'Could not refine transcript', false)
   } finally {
     transcribingId.value = null
   }
@@ -261,27 +259,10 @@ function exportDay(date, races) {
   dlCSV(csv, `MPYC_${date}.csv`)
 }
 
-// ── Auto-transcribe when back online
-async function autoTranscribe() {
-  if (!navigator.onLine) return
-  const pending = recordings.value.filter(r => !r.transcript)
-  if (!pending.length) return
-  ui.toast(`Transcribing ${pending.length} voice note${pending.length > 1 ? 's' : ''}…`)
-  for (const rec of pending) {
-    await transcribeRecording(rec)
-  }
-}
-
 onMounted(async () => {
   await compStore.load()
   await raceStore.loadRaces()
   await loadRecordings()
-  autoTranscribe()
-  window.addEventListener('online', autoTranscribe)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('online', autoTranscribe)
 })
 </script>
 
@@ -372,7 +353,7 @@ onUnmounted(() => {
             </div>
             <div class="rec-actions">
               <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">{{ playingId === rec.id ? '■ Stop' : '▶ Play' }}</button>
-              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
+              <button v-if="rec.transcript" class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
               <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
             </div>
           </div>
@@ -438,7 +419,7 @@ onUnmounted(() => {
             </div>
             <div class="rec-actions">
               <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">{{ playingId === rec.id ? '■ Stop' : '▶ Play' }}</button>
-              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
+              <button v-if="rec.transcript" class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
             </div>
           </div>
         </div>

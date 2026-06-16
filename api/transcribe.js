@@ -1,7 +1,7 @@
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '1mb',
     },
   },
 }
@@ -15,8 +15,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { audio, mimeType } = req.body ?? {}
-    if (!audio) return res.status(400).json({ error: 'audio is required' })
+    const { rawText } = req.body ?? {}
+    if (!rawText) return res.status(400).json({ error: 'rawText is required' })
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
@@ -24,29 +24,16 @@ export default async function handler(req, res) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Content-Type':    'application/json',
-        'x-api-key':       apiKey,
+        'Content-Type':      'application/json',
+        'x-api-key':         apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-6',
-        max_tokens: 1024,
+        model:      'claude-haiku-4-5',
+        max_tokens: 512,
         messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'audio',
-              source: {
-                type:       'base64',
-                media_type: mimeType || 'audio/webm',
-                data:       audio,
-              },
-            },
-            {
-              type: 'text',
-              text: 'Transcribe this audio recording exactly as spoken. It is a voice note from a yacht race — may contain sailing terminology, boat names, sail numbers, competitor names, or race observations. Return only the transcription, no commentary.',
-            },
-          ],
+          role:    'user',
+          content: `Clean up this voice note transcript from a yacht race. Fix speech recognition errors, correct sailing terminology (boat names, sail numbers, race observations), and format it naturally. Return only the cleaned transcript with no commentary:\n\n${rawText}`,
         }],
       }),
     })
@@ -56,7 +43,7 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: data.error?.message || 'Anthropic API error' })
     }
 
-    const transcript = data.content?.map(c => c.text || '').join('').trim() || ''
+    const transcript = data.content?.map(c => c.text || '').join('').trim() || rawText
     return res.status(200).json({ transcript })
 
   } catch (err) {

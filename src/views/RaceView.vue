@@ -142,7 +142,8 @@ let mediaRecorder  = null
 let recChunks      = []
 let recTimer       = null
 let recStart       = null
-
+let recognizer     = null
+let liveTranscript = ''
 
 async function startRecording() {
   if (!recSupported) { ui.toast('Microphone not available', false); return }
@@ -153,9 +154,29 @@ async function startRecording() {
     recChunks      = []
     recStart       = Date.now()
     recDuration.value = 0
+    liveTranscript = ''
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SR) {
+      recognizer              = new SR()
+      recognizer.continuous   = true
+      recognizer.interimResults = false
+      recognizer.lang         = 'en-NZ'
+      recognizer.onresult = e => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal)
+            liveTranscript += (liveTranscript ? ' ' : '') + e.results[i][0].transcript
+        }
+      }
+      recognizer.onerror = () => {}
+      try { recognizer.start() } catch {}
+    }
 
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data) }
     mediaRecorder.onstop = async () => {
+      if (recognizer) { try { recognizer.stop() } catch {} }
+      await new Promise(r => setTimeout(r, 250))
+      recognizer = null
       stream.getTracks().forEach(t => t.stop())
       const blob     = new Blob(recChunks, { type: mediaRecorder.mimeType })
       const duration = Math.round((Date.now() - recStart) / 1000)
@@ -166,10 +187,10 @@ async function startRecording() {
         mimeType:    mediaRecorder.mimeType,
         blob,
         raceNumber:  phase.value !== 'idle' ? raceNumber : null,
+        transcript:  liveTranscript || null,
       })
       ui.toast(`Note saved (${fmtTime(duration)})`)
       haptic(60)
-      loadRecordings()
     }
 
     mediaRecorder.start(500)

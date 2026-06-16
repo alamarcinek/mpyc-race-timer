@@ -131,7 +131,7 @@ html, body {
 
 /* === BOTTOM NAV === */
 .nav {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 210;
   display: flex; background: var(--bg2);
   border-top: 2px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom, 0);
