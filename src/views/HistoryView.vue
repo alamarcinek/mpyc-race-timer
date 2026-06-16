@@ -140,30 +140,18 @@ const raceRecordings    = computed(() => detailRace.value
   ? recordings.value.filter(r => r.raceNumber === detailRace.value.race_number) : [])
 const generalRecordings = computed(() => recordings.value.filter(r => !r.raceNumber))
 
-function parseTime(str) {
-  const parts = String(str).trim().split(':').map(Number)
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
-  if (parts.length === 2) return parts[0] * 60 + (parts[1] || 0)
-  return parseInt(str) || 0
-}
-
 function startEdit() {
-  editResults.value = detailResults.value.map(r => ({
-    ...r,
-    timeStr: r.dnf ? '' : fmtTime(r.elapsed_seconds),
-  }))
+  // Sort by position so time slots are in correct order
+  const sorted = [...detailResults.value].sort((a, b) => a.position - b.position)
+  editResults.value = sorted.map(r => ({ ...r }))
   editMode.value = true
 }
 
 async function saveEdit() {
-  const updated = editResults.value.map((r, i) => ({
-    ...r,
-    position:        i + 1,
-    elapsed_seconds: r.dnf ? 0 : parseTime(r.timeStr),
-    dnf:             r.dnf,
-  }))
+  // Only positions and competitor assignments are updated — times stay with their slots
+  const updated = editResults.value.map((r, i) => ({ ...r, position: i + 1 }))
   for (const r of updated) raceStore.saveResult(r)
-  detailResults.value = updated.map(({ timeStr, ...r }) => r)
+  detailResults.value = [...updated]
   return updated
 }
 
@@ -208,10 +196,11 @@ function tEnd(e) {
   tEl = null; tFromIdx = null
 }
 function moveEditRow(from, to) {
-  const arr = [...editResults.value]
-  const [item] = arr.splice(from, 1)
-  arr.splice(to, 0, item)
-  editResults.value = arr
+  // Only move competitor assignments — times stay pinned to position slots
+  const ids = editResults.value.map(r => r.competitor_id)
+  const [id] = ids.splice(from, 1)
+  ids.splice(to, 0, id)
+  editResults.value = editResults.value.map((r, i) => ({ ...r, competitor_id: ids[i] }))
   haptic(20)
 }
 
@@ -393,7 +382,6 @@ function exportAll() {
                 <th>Sailor</th>
                 <th>Sail #</th>
                 <th>Class</th>
-                <th>DNF</th>
               </tr>
             </thead>
             <tbody class="edit-tbody">
@@ -408,19 +396,12 @@ function exportAll() {
                   @touchend.passive="tEnd($event, i)">
                 <td class="drag-grip">⠿</td>
                 <td class="pos-num">{{ i + 1 }}</td>
-                <td>
-                  <input v-if="!r.dnf" v-model="r.timeStr" class="fi edit-time" placeholder="M:SS" />
-                  <span v-else class="finish-time none">DNF</span>
+                <td class="finish-time" :class="r.dnf ? 'none' : 'has'">
+                  {{ r.dnf ? 'DNF' : fmtTime(r.elapsed_seconds) }}
                 </td>
                 <td>{{ compName(r.competitor_id) }}</td>
                 <td class="sail-num">{{ compSail(r.competitor_id) }}</td>
                 <td><span class="class-badge">{{ compClass(r.competitor_id) }}</span></td>
-                <td>
-                  <label class="dnf-toggle">
-                    <input type="checkbox" v-model="r.dnf" />
-                    DNF
-                  </label>
-                </td>
               </tr>
             </tbody>
           </table>
@@ -461,9 +442,6 @@ function exportAll() {
 .badge-ready { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(0,232,176,.15); color: var(--accent); }
 .badge-draft { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(255,170,46,.12); color: var(--orange); }
 
-.edit-time { width: 76px; padding: 8px 10px; min-height: 40px; font-size: 15px; text-align: center; }
-.dnf-toggle { display: flex; align-items: center; gap: 6px; font: 600 12px/1 var(--sans); color: var(--text2); flex-shrink: 0; cursor: pointer; }
-.dnf-toggle input { width: 18px; height: 18px; accent-color: var(--warn); cursor: pointer; }
 
 .rec-row {
   display: flex; align-items: center; justify-content: space-between;
