@@ -110,12 +110,24 @@ async function handlePhoto(file) {
     const data = await resp.json()
     const parsed = JSON.parse(data.text.replace(/```json|```/g, '').trim())
     if (Array.isArray(parsed) && parsed.length) {
-      for (const p of parsed) {
-        store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })
+      const doImport = () => {
+        store.clear()
+        for (const p of parsed) {
+          store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })
+        }
+        ui.markSaved()
+        parseStatus.value = { type: 'success', text: `✓ Found ${parsed.length} competitor${parsed.length > 1 ? 's' : ''}` }
+        ui.toast(`${parsed.length} sailors imported`)
       }
-      ui.markSaved()
-      parseStatus.value = { type: 'success', text: `✓ Found ${parsed.length} competitor${parsed.length > 1 ? 's' : ''}` }
-      ui.toast(`${parsed.length} sailors added`)
+      if (store.competitors.length) {
+        ui.showConfirm(
+          'Replace sailor list?',
+          `This will replace ${store.competitors.length} existing sailor${store.competitors.length > 1 ? 's' : ''} with the ${parsed.length} found on the new sheet.`,
+          doImport
+        )
+      } else {
+        doImport()
+      }
     } else {
       parseStatus.value = { type: 'error', text: '✗ No competitors found — add manually.' }
     }

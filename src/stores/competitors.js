@@ -1,17 +1,34 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-const KEY = 'mpyc_competitors'
+const KEY      = 'mpyc_competitors'
+const DATE_KEY = 'mpyc_competitors_date'
+
+function todayStr() { return new Date().toISOString().slice(0, 10) }
 
 export const useCompetitorsStore = defineStore('competitors', () => {
   const competitors = ref([])
 
   function load() {
-    competitors.value = JSON.parse(localStorage.getItem(KEY) || '[]')
+    const storedDate = localStorage.getItem(DATE_KEY)
+    if (storedDate !== todayStr()) {
+      competitors.value = []
+      localStorage.removeItem(KEY)
+      localStorage.setItem(DATE_KEY, todayStr())
+    } else {
+      competitors.value = JSON.parse(localStorage.getItem(KEY) || '[]')
+    }
   }
 
   function persist() {
     localStorage.setItem(KEY, JSON.stringify(competitors.value))
+    localStorage.setItem(DATE_KEY, todayStr())
+  }
+
+  function clear() {
+    competitors.value = []
+    localStorage.removeItem(KEY)
+    localStorage.setItem(DATE_KEY, todayStr())
   }
 
   function addCompetitor(payload) {
@@ -38,5 +55,5 @@ export const useCompetitorsStore = defineStore('competitors', () => {
     persist()
   }
 
-  return { competitors, load, addCompetitor, updateCompetitor, deleteCompetitor }
+  return { competitors, load, clear, addCompetitor, updateCompetitor, deleteCompetitor }
 })
