@@ -236,11 +236,21 @@ async function exportDetail() {
   dlCSV(raceCSV(detailRace.value, detailResults.value), `MPYC_Race${detailRace.value.race_number}_${detailRace.value.race_date}.csv`)
 }
 
-function exportAll() {
-  if (!raceStore.races.length) { ui.toast('No races yet', false); return }
+const groupedRaces = computed(() => {
+  const groups = {}
+  for (const race of raceStore.races) {
+    if (!groups[race.race_date]) groups[race.race_date] = []
+    groups[race.race_date].push(race)
+  }
+  return Object.entries(groups)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, races]) => ({ date, races }))
+})
+
+function exportDay(date, races) {
   const allResults = JSON.parse(localStorage.getItem('mpyc_results') || '[]')
   let csv = 'raceno,class,sailno,HelmName,start,elapsed\n'
-  for (const race of raceStore.races) {
+  for (const race of races) {
     const results = allResults.filter(r => r.race_id === race.id)
     const start   = race.start_time || '00:00:00'
     results.forEach(r => {
@@ -248,7 +258,7 @@ function exportAll() {
       csv += `${race.race_number},${csvStr(compClass(r.competitor_id))},${csvStr(compSail(r.competitor_id))},${csvStr(compName(r.competitor_id))},${start},${elapsed}\n`
     })
   }
-  dlCSV(csv, `MPYC_AllRaces_${new Date().toISOString().slice(0,10)}.csv`)
+  dlCSV(csv, `MPYC_${date}.csv`)
 }
 </script>
 
@@ -266,24 +276,26 @@ function exportAll() {
       No races saved yet.<br>Finish a race to see it here.
     </div>
 
-    <div v-for="race in raceStore.races" :key="race.id"
-         class="hist-card" @click="openDetail(race)">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="date">{{ race.race_date }} {{ race.start_time?.slice(0,5) }}</div>
-        <span :class="race.confirmed ? 'badge-ready' : 'badge-draft'">
-          {{ race.confirmed ? '✓ Ready' : 'Draft' }}
-        </span>
-      </div>
-      <div class="name">Race {{ race.race_number }}</div>
-      <div class="meta">{{ race.seq_minutes }}min start sequence</div>
-    </div>
+    <div v-for="group in groupedRaces" :key="group.date" class="day-group">
+      <div class="day-header">{{ fmtDate(group.date) }}</div>
 
-    <button v-if="raceStore.races.length"
-            class="btn btn-primary btn-xl btn-block"
-            style="margin-top:8px"
-            @click="exportAll">
-      ⬇ Export All — Sailwave CSV
-    </button>
+      <div v-for="race in group.races" :key="race.id"
+           class="hist-card" @click="openDetail(race)">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="date">{{ race.start_time?.slice(0,5) }}</div>
+          <span :class="race.confirmed ? 'badge-ready' : 'badge-draft'">
+            {{ race.confirmed ? '✓ Ready' : 'Draft' }}
+          </span>
+        </div>
+        <div class="name">Race {{ race.race_number }}</div>
+        <div class="meta">{{ race.seq_minutes }}min start sequence</div>
+      </div>
+
+      <button class="btn btn-ghost btn-xl btn-block" style="margin-bottom:8px"
+              @click="exportDay(group.date, group.races)">
+        ⬇ Export {{ fmtDate(group.date) }} — Sailwave CSV
+      </button>
+    </div>
 
 
   </div>
@@ -414,6 +426,13 @@ function exportAll() {
 </template>
 
 <style scoped>
+.day-group { margin-bottom: 24px; }
+.day-header {
+  font: 700 13px/1 var(--sans); text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--text2); padding: 8px 0 10px; border-bottom: 2px solid var(--border);
+  margin-bottom: 10px;
+}
+
 .badge-ready { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(0,232,176,.15); color: var(--accent); }
 .badge-draft { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(255,170,46,.12); color: var(--orange); }
 
