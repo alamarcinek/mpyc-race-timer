@@ -1,15 +1,17 @@
 <script setup>
 import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useRacesStore } from '@/stores/races.js'
 import { useUIStore } from '@/stores/ui.js'
-import { saveRecording } from '@/lib/recordings.js'
+import { saveRecording, deleteRecording } from '@/lib/recordings.js'
 
 defineOptions({ name: 'RaceView' })
 
 const compStore = useCompetitorsStore()
 const raceStore = useRacesStore()
 const ui        = useUIStore()
+const router    = useRouter()
 
 // ── Local race state
 const phase       = ref('idle')         // idle | countdown | racing
@@ -135,16 +137,43 @@ onActivated(() => {
 })
 
 // ── Voice notes
-const isRecording  = ref(false)
-const recDuration  = ref(0)
-const recSupported = !!navigator.mediaDevices?.getUserMedia
-const MAX_REC_SECS = 120
-let mediaRecorder  = null
-let recChunks      = []
-let recTimer       = null
-let recStart       = null
-let recognizer     = null
-let liveTranscript = ''
+const isRecording      = ref(false)
+const recDuration      = ref(0)
+const recSupported     = !!navigator.mediaDevices?.getUserMedia
+const MAX_REC_SECS     = 120
+let mediaRecorder      = null
+let recChunks          = []
+let recTimer           = null
+let recStart           = null
+let recognizer         = null
+let liveTranscript     = ''
+let audioPlayer        = null
+const playingId        = ref(null)
+const sessionRecordings = ref([])
+
+function playRec(rec) {
+  if (audioPlayer) {
+    audioPlayer.pause()
+    URL.revokeObjectURL(audioPlayer.src)
+    audioPlayer = null
+    if (playingId.value === rec.id) { playingId.value = null; return }
+  }
+  const url = URL.createObjectURL(rec.blob)
+  audioPlayer = new Audio(url)
+  playingId.value = rec.id
+  audioPlayer.play()
+  audioPlayer.onended = () => { URL.revokeObjectURL(url); playingId.value = null; audioPlayer = null }
+}
+
+async function deleteRec(id) {
+  if (playingId.value === id) { audioPlayer?.pause(); audioPlayer = null; playingId.value = null }
+  await deleteRecording(id)
+  sessionRecordings.value = sessionRecordings.value.filter(r => r.id !== id)
+}
+
+function fmtRecTime(ts) {
+  return new Date(ts).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })
+}
 
 async function startRecording() {
   if (!recSupported) { ui.toast('Microphone not available', false); return }
@@ -190,17 +219,19 @@ async function startRecording() {
       stream.getTracks().forEach(t => t.stop())
       const blob     = new Blob(recChunks, { type: mediaRecorder.mimeType })
       const duration = Math.round((Date.now() - recStart) / 1000)
-      await saveRecording({
-        id:          crypto.randomUUID(),
-        timestamp:   recStart,
+      const rec = {
+        id:         crypto.randomUUID(),
+        timestamp:  recStart,
         duration,
-        mimeType:    mediaRecorder.mimeType,
+        mimeType:   mediaRecorder.mimeType,
         blob,
-        raceId:      capturedRaceId,
-        raceNumber:  capturedRaceNumber,
-        transcript:  liveTranscript || null,
-      })
-      ui.toast(`Note saved (${fmtTime(duration)})${liveTranscript ? ' + transcript' : ''}`)
+        raceId:     capturedRaceId,
+        raceNumber: capturedRaceNumber,
+        transcript: liveTranscript || null,
+      }
+      await saveRecording(rec)
+      sessionRecordings.value.push(rec)
+      ui.toast(`Voice note saved (${fmtTime(duration)})${liveTranscript ? ' + transcript' : ''}`)
       haptic(60)
     }
 
@@ -373,6 +404,8 @@ async function doFinishRace() {
 
   for (const r of results) await raceStore.saveResult(r)
   ui.markSaved()
+  sessionRecordings.value = []
+  router.push('/history')
 }
 
 function confirmFinish() {
@@ -540,6 +573,24 @@ function fmtTime(secs) {
       </div>
     </div>
 
+    <!-- Voice notes recorded this race -->
+    <div v-if="sessionRecordings.length" class="card" style="margin-top:12px">
+      <div class="card-title">🎙 Voice Notes ({{ sessionRecordings.length }})</div>
+      <div v-for="rec in sessionRecordings" :key="rec.id" class="rec-row">
+        <div class="rec-info">
+          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
+          <div class="rec-meta">{{ fmtTime(rec.duration) }}</div>
+          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
+        </div>
+        <div class="rec-actions">
+          <button class="btn btn-ghost btn-sm" @click="playRec(rec)">
+            {{ playingId === rec.id ? '■' : '▶' }}
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="deleteRec(rec.id)">✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Cancel — intentionally subtle, far from RECORD FINISH -->
     <div v-if="phase === 'racing'" style="text-align:center;padding:16px 0 4px">
       <button class="cancel-link" @click="cancelRace">Cancel race</button>
@@ -593,6 +644,16 @@ function fmtTime(secs) {
   font: 500 13px/1 var(--sans); cursor: pointer; padding: 8px 16px;
   text-decoration: underline; touch-action: manipulation;
 }
+.rec-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid rgba(28,64,104,.4); gap: 12px;
+}
+.rec-row:last-child { border-bottom: none; }
+.rec-info    { flex: 1; min-width: 0; }
+.rec-time    { font: 600 14px/1.3 var(--sans); }
+.rec-meta    { font: 500 12px/1 var(--sans); color: var(--text2); margin-top: 3px; }
+.rec-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rec-transcript { font: 400 12px/1.5 var(--sans); color: var(--text2); margin-top: 5px; font-style: italic; }
 
 .btn-rec {
   position: fixed; right: 16px; bottom: 90px; z-index: 50;
