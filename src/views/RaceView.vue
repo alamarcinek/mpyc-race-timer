@@ -426,24 +426,36 @@ function dDrop(e, to) {
 }
 
 // ── Touch drag (mobile)
+let tOverIdx = null
+
 function tStart(e, idx) {
   if (!e.target.closest('.drag-grip')) return
-  tFromIdx = idx; tEl = e.currentTarget
+  tFromIdx = idx; tOverIdx = idx; tEl = e.currentTarget
   tEl.classList.add('dragging')
 }
-function tMove(e) { if (tEl) e.preventDefault() }
-function tEnd(e, _idx) {
+
+function tMove(e) {
   if (!tEl) return
-  tEl.classList.remove('dragging')
-  const endY = e.changedTouches[0].clientY
-  const rows  = document.querySelectorAll('.race-tbody .comp-row')
-  let to = tFromIdx
+  e.preventDefault()
+  const y    = e.touches[0].clientY
+  const rows = document.querySelectorAll('.race-tbody .comp-row')
   rows.forEach((row, i) => {
     const r = row.getBoundingClientRect()
-    if (endY >= r.top && endY <= r.bottom) to = i
+    if (y >= r.top && y <= r.bottom && tOverIdx !== i) {
+      if (tOverIdx !== null) rows[tOverIdx]?.classList.remove('drag-over')
+      tOverIdx = i
+      row.classList.add('drag-over')
+    }
   })
+}
+
+function tEnd(e) {
+  if (!tEl) return
+  tEl.classList.remove('dragging')
+  document.querySelectorAll('.race-tbody .comp-row').forEach(r => r.classList.remove('drag-over'))
+  const to = tOverIdx ?? tFromIdx
   if (tFromIdx !== to) moveRow(tFromIdx, to)
-  tEl = null; tFromIdx = null
+  tEl = null; tFromIdx = null; tOverIdx = null
 }
 
 function moveRow(from, to) {
@@ -541,9 +553,9 @@ function fmtTime(secs) {
                 @dragstart="dStart($event, i)"
                 @dragover="dOver"
                 @drop="dDrop($event, i)"
-                @touchstart.passive="tStart($event, i)"
+                @touchstart="tStart($event, i)"
                 @touchmove="tMove"
-                @touchend.passive="tEnd($event, i)">
+                @touchend="tEnd">
               <td class="drag-grip">⠿</td>
               <td class="pos-num">{{ i + 1 }}</td>
               <td class="finish-time" :class="i < finishTimes.length ? 'has' : 'none'">
@@ -637,6 +649,14 @@ function fmtTime(secs) {
 </template>
 
 <style scoped>
+.drag-grip {
+  touch-action: none;
+  user-select: none; -webkit-user-select: none;
+  cursor: grab; color: var(--text2); padding: 0 6px; font-size: 18px;
+}
+.comp-row.dragging  { opacity: 0.35; }
+.comp-row.drag-over { box-shadow: 0 -2px 0 var(--accent) inset; }
+
 .race-sticky {
   position: sticky; top: 0; z-index: 80;
   background: var(--bg); padding: 8px 0 12px;
