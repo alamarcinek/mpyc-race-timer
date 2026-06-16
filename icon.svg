@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="14" fill="#1b3a6b"/>
+  <!-- Mainsail -->
+  <polygon points="53,13 53,70 77,70" fill="#dce4f0"/>
+  <!-- Jib -->
+  <polygon points="53,20 53,66 30,59" fill="#9aa8bc"/>
+  <!-- Hull -->
+  <path d="M27,72 Q50,82 73,72 L69,76 Q50,87 31,76 Z" fill="#dce4f0"/>
+</svg>
