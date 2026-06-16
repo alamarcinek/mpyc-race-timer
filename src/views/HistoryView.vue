@@ -370,6 +370,26 @@ function exportAll() {
             DNF
           </label>
         </div>
+        <!-- Voice notes accessible in edit mode -->
+        <div v-if="raceRecordings.length" style="margin-top:16px">
+          <div class="card-title">🎙 Voice Notes</div>
+          <div v-for="rec in raceRecordings" :key="rec.id" class="rec-row">
+            <div class="rec-info">
+              <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
+              <div class="rec-meta">{{ fmtTime(rec.duration) }}</div>
+              <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
+            </div>
+            <div class="rec-actions">
+              <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
+                {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
+              </button>
+              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">
+                {{ transcribingId === rec.id ? '…' : '✦' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex;gap:var(--tap-gap);margin-top:16px">
           <button class="btn btn-primary btn-block" @click="saveEdit">✓ Save</button>
           <button class="btn btn-ghost btn-block"   @click="editMode = false">Cancel</button>
