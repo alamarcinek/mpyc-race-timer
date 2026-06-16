@@ -8,12 +8,16 @@ const store  = useCompetitorsStore()
 const ui     = useUIStore()
 const router = useRouter()
 
-const CLASSES = ['ILCA 7', 'ILCA 6', 'ILCA 4', 'Other']
+const STANDARD_CLASSES = ['ILCA 7', 'ILCA 6', 'ILCA 4']
+const CLASSES = [...STANDARD_CLASSES, 'Other']
+
+function isCustomClass(cls) { return !STANDARD_CLASSES.includes(cls) }
 
 // Form
-const addName   = ref('')
-const addSailNo = ref('')
-const addClass  = ref('ILCA 7')
+const addName     = ref('')
+const addSailNo   = ref('')
+const addClass    = ref('ILCA 7')
+const addCustomCl = ref('')
 
 // Scan
 const photoInput  = ref(null)
@@ -27,9 +31,13 @@ function haptic(ms = 30) { try { navigator.vibrate?.(ms) } catch {} }
 async function addCompetitor() {
   const name = addName.value.trim()
   if (!name) { ui.toast('Enter sailor name', false); return }
-  await store.addCompetitor({ name, sail_no: addSailNo.value.trim(), class: addClass.value })
+  const cls = addClass.value === 'Other'
+    ? (addCustomCl.value.trim() || 'Other')
+    : addClass.value
+  await store.addCompetitor({ name, sail_no: addSailNo.value.trim(), class: cls })
   addName.value = ''
   addSailNo.value = ''
+  addCustomCl.value = ''
   ui.markSaved()
   haptic(30)
   ui.toast(`${name} added`)
@@ -164,6 +172,9 @@ async function handlePhoto(file) {
           <select class="fs" v-model="addClass">
             <option v-for="c in CLASSES" :key="c">{{ c }}</option>
           </select>
+          <input v-if="addClass === 'Other'" class="fi" v-model="addCustomCl"
+                 placeholder="Type class name…" autocomplete="off"
+                 style="margin-top:6px" @keyup.enter="addCompetitor" />
         </div>
       </div>
       <button class="btn btn-primary btn-block" @click="addCompetitor">Add Sailor</button>
@@ -187,10 +198,18 @@ async function handlePhoto(file) {
                        @change="store.updateCompetitor(c.id, { sail_no: $event.target.value.trim() })" />
               </td>
               <td>
-                <select class="inline-fs" :value="c.class"
-                        @change="store.updateCompetitor(c.id, { class: $event.target.value })">
-                  <option v-for="cls in CLASSES" :key="cls">{{ cls }}</option>
-                </select>
+                <template v-if="!isCustomClass(c.class)">
+                  <select class="inline-fs" :value="c.class"
+                          @change="store.updateCompetitor(c.id, { class: $event.target.value })">
+                    <option v-for="cls in CLASSES" :key="cls">{{ cls }}</option>
+                  </select>
+                </template>
+                <template v-else>
+                  <input class="inline-fi" style="font-size:12px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.5px"
+                         :value="c.class === 'Other' ? '' : c.class"
+                         placeholder="Class…"
+                         @change="store.updateCompetitor(c.id, { class: $event.target.value.trim() || 'ILCA 7' })" />
+                </template>
               </td>
               <td>
                 <button class="btn btn-ghost btn-sm" style="color:var(--warn)"
