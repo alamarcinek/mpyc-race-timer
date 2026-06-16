@@ -28,12 +28,6 @@ function nav(path) {
 </script>
 
 <template>
-  <!-- Status bar -->
-  <div class="status-bar">
-    <span>{{ ui.saveStatus }}</span>
-    <span>{{ ui.wakeLockLabel }}</span>
-  </div>
-
   <!-- Toast -->
   <div class="toast" :class="[ui.toastVisible ? 'show' : '', ui.toastType]">
     {{ ui.toastMsg }}
@@ -133,21 +127,6 @@ html, body {
   overscroll-behavior-y: contain;
 }
 
-/* === STATUS BAR === */
-.status-bar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 90;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px; background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  font: 600 11px/1 var(--mono); color: var(--text2);
-  height: 32px;
-}
-.status-bar .indicator {
-  width: 8px; height: 8px; border-radius: 50%;
-  display: inline-block; margin-right: 5px; vertical-align: middle;
-}
-.indicator.ok   { background: var(--green); }
-.indicator.warn { background: var(--orange); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
 /* === BOTTOM NAV === */
@@ -169,7 +148,7 @@ html, body {
 
 /* === TOAST === */
 .toast {
-  position: fixed; top: 40px; left: 50%; transform: translateX(-50%);
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
   padding: 12px 24px; border-radius: 12px;
   font: 700 15px/1 var(--sans); z-index: 300;
   opacity: 0; transition: opacity .25s; pointer-events: none;
@@ -380,7 +359,7 @@ html, body {
 .modal h2 { font: 800 20px/1.2 var(--sans); margin-bottom: 16px; }
 
 /* === PAGE SHELL === */
-.page { padding: 48px 16px 100px; min-height: 100dvh; }
+.page { padding: 8px 16px 100px; min-height: 100dvh; }
 
 .page-header {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -393,7 +372,7 @@ html, body {
 @media (min-width: 768px) {
   .timer-display { font-size: 100px; }
   .btn-mega      { min-height: 100px; font-size: 26px; }
-  .page          { padding: 48px 24px 100px; max-width: 700px; margin: 0 auto; }
+  .page          { padding: 8px 24px 100px; max-width: 700px; margin: 0 auto; }
 }
 @media (max-width: 380px) {
   .timer-display { font-size: 60px; }

@@ -413,29 +413,12 @@ function fmtTime(secs) {
       <button class="btn btn-ghost btn-sm" @click="addSailorOpen = true">+ Sailor</button>
     </div>
 
-    <!-- Timer -->
-    <div class="timer-wrap">
-      <div class="timer-label">{{ displayLabel }}</div>
-      <div class="timer-display" :class="displayClass">{{ displayText }}</div>
-    </div>
-
-    <!-- Sequence selector (idle only) -->
-    <div v-if="phase === 'idle'">
-      <div style="font:700 12px/1 var(--sans);color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;text-align:center;margin-bottom:10px">
-        Start Sequence
+    <!-- Sticky timer + primary action -->
+    <div class="race-sticky">
+      <div class="timer-wrap">
+        <div class="timer-label">{{ displayLabel }}</div>
+        <div class="timer-display" :class="displayClass">{{ displayText }}</div>
       </div>
-      <div class="seq-row">
-        <button v-for="n in [1,2,3,4,5]" :key="n"
-                class="seq-btn" :class="{ active: seqMinutes === n }"
-                @click="setSeq(n)">{{ n }}</button>
-      </div>
-    </div>
-
-    <!-- Race controls -->
-    <div class="race-controls">
-      <button v-if="phase === 'idle'"
-              class="btn btn-primary btn-xl btn-block"
-              @click="startRace">▶ START SEQUENCE</button>
 
       <button v-if="phase === 'countdown'"
               class="btn btn-danger btn-xl btn-block"
@@ -446,15 +429,18 @@ function fmtTime(secs) {
               @click="recordFinish">🏁 RECORD FINISH</button>
     </div>
 
-    <!-- Finish chips -->
-    <div v-if="finishTimes.length" class="card">
-      <div class="card-title">Finish Times ({{ finishTimes.length }})</div>
-      <div class="finish-strip">
-        <span v-for="(t, i) in finishTimes" :key="i" class="finish-chip">
-          <span style="color:var(--text2);font-size:11px;margin-right:2px">#{{ i + 1 }}</span>
-          {{ fmtTime(t) }}
-          <button class="rm" @click="removeFinish(i)">×</button>
-        </span>
+    <!-- Sequence selector + start (idle only) -->
+    <div v-if="phase === 'idle'">
+      <div style="font:700 12px/1 var(--sans);color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;text-align:center;margin-bottom:10px">
+        Start Sequence
+      </div>
+      <div class="seq-row">
+        <button v-for="n in [1,2,3,4,5]" :key="n"
+                class="seq-btn" :class="{ active: seqMinutes === n }"
+                @click="setSeq(n)">{{ n }}</button>
+      </div>
+      <div class="race-controls">
+        <button class="btn btn-primary btn-xl btn-block" @click="startRace">▶ START SEQUENCE</button>
       </div>
     </div>
 
@@ -497,6 +483,18 @@ function fmtTime(secs) {
       </div>
     </div>
 
+    <!-- Finish chips -->
+    <div v-if="finishTimes.length" class="card">
+      <div class="card-title">Finish Times ({{ finishTimes.length }})</div>
+      <div class="finish-strip">
+        <span v-for="(t, i) in finishTimes" :key="i" class="finish-chip">
+          <span style="color:var(--text2);font-size:11px;margin-right:2px">#{{ i + 1 }}</span>
+          {{ fmtTime(t) }}
+          <button class="rm" @click="removeFinish(i)">×</button>
+        </span>
+      </div>
+    </div>
+
     <!-- Finish & save -->
     <div v-if="phase === 'racing' || finishTimes.length > 0" class="finish-save-row">
       <button class="btn btn-primary btn-xl" style="flex:1" @click="confirmFinish">
@@ -512,7 +510,7 @@ function fmtTime(secs) {
   <!-- Floating voice note button -->
   <button v-if="recSupported" class="btn-rec" :class="{ active: isRecording }" @click="toggleRecording">
     <span class="rec-dot" />
-    <span class="rec-label">{{ isRecording ? fmtTime(recDuration) : 'NOTE' }}</span>
+    <span class="rec-label">{{ isRecording ? fmtTime(recDuration) : 'VOICE\nNOTE' }}</span>
   </button>
 
   <!-- Add Sailor modal -->
@@ -544,6 +542,11 @@ function fmtTime(secs) {
 </template>
 
 <style scoped>
+.race-sticky {
+  position: sticky; top: 0; z-index: 80;
+  background: var(--bg); padding: 8px 0 12px;
+  border-bottom: 1px solid var(--border); margin-bottom: 12px;
+}
 .race-controls { display: flex; flex-direction: column; gap: var(--tap-gap); padding: 8px 0; }
 .finish-save-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
 
@@ -564,6 +567,6 @@ function fmtTime(secs) {
   transition: background .15s;
 }
 .btn-rec.active .rec-dot { background: var(--warn); animation: pulse 1s infinite; }
-.rec-label { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; }
+.rec-label { font: 700 9px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .5px; white-space: pre-line; text-align: center; }
 
 </style>
