@@ -118,11 +118,13 @@ async function openDetail(race) {
   detailRace.value    = race
   detailResults.value = []
   detailLoading.value = true
-  editMode.value      = false
   detailOpen.value    = true
   await raceStore.loadResultsForRace(race.id)
   detailResults.value = [...raceStore.results].sort((a,b) => a.position - b.position)
   detailLoading.value = false
+  // unconfirmed races open directly in edit mode
+  if (!race.confirmed) startEdit()
+  else editMode.value = false
 }
 
 function deleteRace() {
@@ -162,9 +164,16 @@ async function saveEdit() {
   }))
   for (const r of updated) raceStore.saveResult(r)
   detailResults.value = updated.map(({ timeStr, ...r }) => r)
+  return updated
+}
+
+async function confirmEdit() {
+  await saveEdit()
+  raceStore.confirmRace(detailRace.value.id)
+  detailRace.value = { ...detailRace.value, confirmed: true }
   editMode.value = false
   haptic(50)
-  ui.toast('Results updated')
+  ui.toast('Results confirmed ✓')
 }
 
 // ── Drag & drop (edit mode)
@@ -270,7 +279,12 @@ function exportAll() {
 
     <div v-for="race in raceStore.races" :key="race.id"
          class="hist-card" @click="openDetail(race)">
-      <div class="date">{{ race.race_date }} {{ race.start_time?.slice(0,5) }}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="date">{{ race.race_date }} {{ race.start_time?.slice(0,5) }}</div>
+        <span :class="race.confirmed ? 'badge-ready' : 'badge-draft'">
+          {{ race.confirmed ? '✓ Ready' : 'Draft' }}
+        </span>
+      </div>
       <div class="name">Race {{ race.race_number }}</div>
       <div class="meta">{{ race.seq_minutes }}min start sequence</div>
     </div>
@@ -313,32 +327,29 @@ function exportAll() {
   <!-- Race detail bottom sheet -->
   <div class="modal-bg" :class="{ open: detailOpen }" @click.self="detailOpen = false">
     <div class="modal">
+
+      <!-- Title row -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <h2 v-if="detailRace">Race {{ detailRace.race_number }}</h2>
-        <button v-if="!editMode && detailResults.length" class="btn btn-ghost btn-sm" @click="startEdit">✎ Edit</button>
+        <span v-if="detailRace" :class="detailRace.confirmed ? 'badge-ready' : 'badge-draft'">
+          {{ detailRace.confirmed ? '✓ Ready' : 'Draft' }}
+        </span>
       </div>
-
       <div v-if="detailRace" style="color:var(--text2);font-size:13px;margin-bottom:12px">
         {{ fmtDate(detailRace.race_date) }} · Start: {{ detailRace.start_time?.slice(0,5) ?? 'N/A' }}
       </div>
 
-      <div v-if="detailLoading" style="color:var(--text2);padding:20px 0;text-align:center">
-        Loading…
-      </div>
+      <div v-if="detailLoading" style="color:var(--text2);padding:20px 0;text-align:center">Loading…</div>
 
-      <!-- Normal view -->
-      <div v-else-if="!editMode">
+      <!-- Confirmed: read-only -->
+      <div v-else-if="detailRace?.confirmed">
         <div v-if="detailResults.length" style="overflow-x:auto">
           <table class="comp-table">
-            <thead>
-              <tr><th>#</th><th>Time</th><th>Sailor</th><th>Sail #</th><th>Class</th></tr>
-            </thead>
+            <thead><tr><th>#</th><th>Time</th><th>Sailor</th><th>Sail #</th><th>Class</th></tr></thead>
             <tbody>
               <tr v-for="r in detailResults" :key="r.id" class="comp-row">
                 <td class="pos-num">{{ r.position }}</td>
-                <td class="finish-time" :class="r.dnf ? 'none' : 'has'">
-                  {{ r.dnf ? 'DNF' : fmtTime(r.elapsed_seconds) }}
-                </td>
+                <td class="finish-time" :class="r.dnf ? 'none' : 'has'">{{ r.dnf ? 'DNF' : fmtTime(r.elapsed_seconds) }}</td>
                 <td>{{ compName(r.competitor_id) }}</td>
                 <td class="sail-num">{{ compSail(r.competitor_id) }}</td>
                 <td><span class="class-badge">{{ compClass(r.competitor_id) }}</span></td>
@@ -346,9 +357,13 @@ function exportAll() {
             </tbody>
           </table>
         </div>
-
-        <!-- Voice notes for this race -->
-        <div v-if="raceRecordings.length" style="margin-top:16px">
+        <div style="display:flex;gap:var(--tap-gap);margin-top:16px">
+          <button class="btn btn-primary btn-block" @click="exportDetail">⬇ Export CSV</button>
+          <button class="btn btn-danger btn-block"  @click="deleteRace">🗑 Delete</button>
+        </div>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px" @click="detailOpen = false">Close</button>
+        <!-- Recordings at bottom -->
+        <div v-if="raceRecordings.length" style="margin-top:20px">
           <div class="card-title">🎙 Voice Notes</div>
           <div v-for="rec in raceRecordings" :key="rec.id" class="rec-row">
             <div class="rec-info">
@@ -357,29 +372,17 @@ function exportAll() {
               <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
             </div>
             <div class="rec-actions">
-              <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
-                {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
-              </button>
-              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">
-                {{ transcribingId === rec.id ? '…' : '✦' }}
-              </button>
+              <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">{{ playingId === rec.id ? '■ Stop' : '▶ Play' }}</button>
+              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
               <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
             </div>
           </div>
         </div>
-
-        <div style="display:flex;gap:var(--tap-gap);margin-top:16px">
-          <button class="btn btn-primary btn-block" @click="exportDetail">⬇ Export CSV</button>
-          <button class="btn btn-danger btn-block"  @click="deleteRace">🗑 Delete</button>
-        </div>
-        <button class="btn btn-ghost btn-block" style="margin-top:10px" @click="detailOpen = false">
-          Close
-        </button>
       </div>
 
-      <!-- Edit mode -->
+      <!-- Draft: always editable -->
       <div v-else>
-        <div class="card-title" style="margin-bottom:8px">drag rows to reorder</div>
+        <div class="card-title" style="margin-bottom:8px">Drag rows to set finish order</div>
         <div style="overflow-x:auto">
           <table class="comp-table">
             <thead>
@@ -388,6 +391,8 @@ function exportAll() {
                 <th style="width:36px">#</th>
                 <th>Time</th>
                 <th>Sailor</th>
+                <th>Sail #</th>
+                <th>Class</th>
                 <th>DNF</th>
               </tr>
             </thead>
@@ -408,6 +413,8 @@ function exportAll() {
                   <span v-else class="finish-time none">DNF</span>
                 </td>
                 <td>{{ compName(r.competitor_id) }}</td>
+                <td class="sail-num">{{ compSail(r.competitor_id) }}</td>
+                <td><span class="class-badge">{{ compClass(r.competitor_id) }}</span></td>
                 <td>
                   <label class="dnf-toggle">
                     <input type="checkbox" v-model="r.dnf" />
@@ -418,8 +425,19 @@ function exportAll() {
             </tbody>
           </table>
         </div>
-        <!-- Voice notes accessible in edit mode -->
-        <div v-if="raceRecordings.length" style="margin-top:16px">
+
+        <button class="btn btn-primary btn-xl btn-block" style="margin-top:16px" @click="confirmEdit">
+          ✓ Confirm Results
+        </button>
+        <button class="btn btn-ghost btn-block" style="margin-top:10px" @click="detailOpen = false">
+          Close
+        </button>
+        <button class="btn btn-danger btn-block" style="margin-top:10px" @click="deleteRace">
+          🗑 Delete Race
+        </button>
+
+        <!-- Recordings at bottom -->
+        <div v-if="raceRecordings.length" style="margin-top:20px">
           <div class="card-title">🎙 Voice Notes</div>
           <div v-for="rec in raceRecordings" :key="rec.id" class="rec-row">
             <div class="rec-info">
@@ -428,26 +446,21 @@ function exportAll() {
               <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
             </div>
             <div class="rec-actions">
-              <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
-                {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
-              </button>
-              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">
-                {{ transcribingId === rec.id ? '…' : '✦' }}
-              </button>
+              <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">{{ playingId === rec.id ? '■ Stop' : '▶ Play' }}</button>
+              <button class="btn btn-ghost btn-sm" :disabled="!!transcribingId" @click="transcribeRecording(rec)">{{ transcribingId === rec.id ? '…' : '✦' }}</button>
             </div>
           </div>
         </div>
-
-        <div style="display:flex;gap:var(--tap-gap);margin-top:16px">
-          <button class="btn btn-primary btn-block" @click="saveEdit">✓ Save</button>
-          <button class="btn btn-ghost btn-block"   @click="editMode = false">Cancel</button>
-        </div>
       </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
+.badge-ready { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(0,232,176,.15); color: var(--accent); }
+.badge-draft { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(255,170,46,.12); color: var(--orange); }
+
 .edit-time { width: 76px; padding: 8px 10px; min-height: 40px; font-size: 15px; text-align: center; }
 .dnf-toggle { display: flex; align-items: center; gap: 6px; font: 600 12px/1 var(--sans); color: var(--text2); flex-shrink: 0; cursor: pointer; }
 .dnf-toggle input { width: 18px; height: 18px; accent-color: var(--warn); cursor: pointer; }

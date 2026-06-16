@@ -59,5 +59,13 @@ export const useRacesStore = defineStore('races', () => {
     races.value = races.value.filter(r => r.id !== id)
   }
 
-  return { races, results, loadRaces, loadResultsForRace, createRace, saveResult, deleteRace }
+  function confirmRace(id) {
+    const all = JSON.parse(localStorage.getItem(RACES_KEY) || '[]')
+    const idx = all.findIndex(r => r.id === id)
+    if (idx >= 0) { all[idx].confirmed = true; localStorage.setItem(RACES_KEY, JSON.stringify(all)) }
+    const j = races.value.findIndex(r => r.id === id)
+    if (j >= 0) races.value[j] = { ...races.value[j], confirmed: true }
+  }
+
+  return { races, results, loadRaces, loadResultsForRace, createRace, saveResult, deleteRace, confirmRace }
 })
