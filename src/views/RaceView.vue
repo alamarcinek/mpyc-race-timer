@@ -169,6 +169,9 @@ async function startRecording() {
         }
       }
       recognizer.onerror = () => {}
+      recognizer.onend = () => {
+        if (isRecording.value) try { recognizer.start() } catch {}
+      }
       try { recognizer.start() } catch {}
     }
 
@@ -189,7 +192,7 @@ async function startRecording() {
         raceNumber:  phase.value !== 'idle' ? raceNumber : null,
         transcript:  liveTranscript || null,
       })
-      ui.toast(`Note saved (${fmtTime(duration)})`)
+      ui.toast(`Note saved (${fmtTime(duration)})${liveTranscript ? ' + transcript' : ''}`)
       haptic(60)
     }
 
