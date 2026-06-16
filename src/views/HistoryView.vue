@@ -285,31 +285,6 @@ function exportAll() {
       ⬇ Export All — Sailwave CSV
     </button>
 
-    <!-- Voice Notes (not linked to a race) -->
-    <div v-if="generalRecordings.length" class="card" style="margin-top:16px">
-      <div class="card-title">🎙 Voice Notes ({{ generalRecordings.length }})</div>
-      <div v-for="rec in generalRecordings" :key="rec.id" class="rec-row">
-        <div class="rec-info">
-          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
-          <div class="rec-meta">
-            {{ fmtTime(rec.duration) }}
-            <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
-          </div>
-          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
-        </div>
-        <div class="rec-actions">
-          <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
-            {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
-          </button>
-          <button class="btn btn-ghost btn-sm"
-                  :disabled="!!transcribingId"
-                  @click="transcribeRecording(rec)">
-            {{ transcribingId === rec.id ? '…' : '✦' }}
-          </button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
-        </div>
-      </div>
-    </div>
 
   </div>
 
