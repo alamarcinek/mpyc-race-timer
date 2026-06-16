@@ -530,32 +530,6 @@ function fmtTime(secs) {
       </div>
     </div>
 
-    <!-- Voice Notes -->
-    <div v-if="recordings.length" class="card">
-      <div class="card-title">🎙 Voice Notes ({{ recordings.length }})</div>
-      <div v-for="rec in recordings" :key="rec.id" class="rec-row">
-        <div class="rec-info">
-          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
-          <div class="rec-meta">
-            {{ fmtTime(rec.duration) }}
-            <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
-          </div>
-          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
-        </div>
-        <div class="rec-actions">
-          <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
-            {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
-          </button>
-          <button class="btn btn-ghost btn-sm"
-                  :disabled="!!transcribingId"
-                  @click="transcribeRecording(rec)">
-            {{ transcribingId === rec.id ? '…' : '✦' }}
-          </button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Results table -->
     <div v-if="raceOrder.length" class="card">
       <div class="card-title">Results — drag rows to reorder</div>
@@ -600,6 +574,32 @@ function fmtTime(secs) {
       <button class="btn btn-primary btn-xl btn-block" @click="confirmFinish">
         ✓ FINISH &amp; SAVE RACE
       </button>
+    </div>
+
+    <!-- Voice Notes -->
+    <div v-if="recordings.length" class="card">
+      <div class="card-title">🎙 Voice Notes ({{ recordings.length }})</div>
+      <div v-for="rec in recordings" :key="rec.id" class="rec-row">
+        <div class="rec-info">
+          <div class="rec-time">{{ fmtRecTime(rec.timestamp) }}</div>
+          <div class="rec-meta">
+            {{ fmtTime(rec.duration) }}
+            <span v-if="rec.raceNumber"> · Race {{ rec.raceNumber }}</span>
+          </div>
+          <div v-if="rec.transcript" class="rec-transcript">{{ rec.transcript }}</div>
+        </div>
+        <div class="rec-actions">
+          <button class="btn btn-ghost btn-sm" @click="playRecording(rec)">
+            {{ playingId === rec.id ? '■ Stop' : '▶ Play' }}
+          </button>
+          <button class="btn btn-ghost btn-sm"
+                  :disabled="!!transcribingId"
+                  @click="transcribeRecording(rec)">
+            {{ transcribingId === rec.id ? '…' : '✦' }}
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--warn)" @click="removeRecording(rec.id)">✕</button>
+        </div>
+      </div>
     </div>
   </div>
 
