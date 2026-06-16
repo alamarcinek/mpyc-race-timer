@@ -134,7 +134,7 @@ function deleteRace() {
 }
 
 // ── Edit results
-const raceRecordings   = computed(() => detailRace.value
+const raceRecordings    = computed(() => detailRace.value
   ? recordings.value.filter(r => r.raceNumber === detailRace.value.race_number) : [])
 const generalRecordings = computed(() => recordings.value.filter(r => !r.raceNumber))
 
@@ -167,20 +167,43 @@ async function saveEdit() {
   ui.toast('Results updated')
 }
 
-function moveUp(i) {
-  if (i === 0) return
-  const arr = [...editResults.value]
-  ;[arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]
-  editResults.value = arr
-  haptic(15)
-}
+// ── Drag & drop (edit mode)
+let dragIdx  = null
+let tFromIdx = null
+let tEl      = null
 
-function moveDown(i) {
-  if (i >= editResults.value.length - 1) return
+function dStart(e, idx) { dragIdx = idx; e.dataTransfer.effectAllowed = 'move' }
+function dOver(e)        { e.preventDefault() }
+function dDrop(e, to) {
+  e.preventDefault()
+  if (dragIdx === null || dragIdx === to) return
+  moveEditRow(dragIdx, to); dragIdx = null
+}
+function tStart(e, idx) {
+  if (!e.target.closest('.drag-grip')) return
+  tFromIdx = idx; tEl = e.currentTarget
+  tEl.classList.add('dragging')
+}
+function tMove(e) { if (tEl) e.preventDefault() }
+function tEnd(e) {
+  if (!tEl) return
+  tEl.classList.remove('dragging')
+  const endY = e.changedTouches[0].clientY
+  const rows = document.querySelectorAll('.edit-tbody .comp-row')
+  let to = tFromIdx
+  rows.forEach((row, i) => {
+    const r = row.getBoundingClientRect()
+    if (endY >= r.top && endY <= r.bottom) to = i
+  })
+  if (tFromIdx !== to) moveEditRow(tFromIdx, to)
+  tEl = null; tFromIdx = null
+}
+function moveEditRow(from, to) {
   const arr = [...editResults.value]
-  ;[arr[i], arr[i + 1]] = [arr[i + 1], arr[i]]
+  const [item] = arr.splice(from, 1)
+  arr.splice(to, 0, item)
   editResults.value = arr
-  haptic(15)
+  haptic(20)
 }
 
 // ── CSV export
@@ -356,19 +379,44 @@ function exportAll() {
 
       <!-- Edit mode -->
       <div v-else>
-        <div v-for="(r, i) in editResults" :key="r.id" class="edit-row">
-          <span class="pos-num">{{ i + 1 }}</span>
-          <div class="edit-move">
-            <button class="move-btn" :disabled="i === 0" @click="moveUp(i)">↑</button>
-            <button class="move-btn" :disabled="i === editResults.length - 1" @click="moveDown(i)">↓</button>
-          </div>
-          <span class="edit-name">{{ compName(r.competitor_id) }}</span>
-          <input v-if="!r.dnf" v-model="r.timeStr" class="fi edit-time" placeholder="M:SS" />
-          <span v-else class="finish-time none" style="flex:1">DNF</span>
-          <label class="dnf-toggle">
-            <input type="checkbox" v-model="r.dnf" />
-            DNF
-          </label>
+        <div class="card-title" style="margin-bottom:8px">drag rows to reorder</div>
+        <div style="overflow-x:auto">
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th style="width:30px"></th>
+                <th style="width:36px">#</th>
+                <th>Time</th>
+                <th>Sailor</th>
+                <th>DNF</th>
+              </tr>
+            </thead>
+            <tbody class="edit-tbody">
+              <tr v-for="(r, i) in editResults" :key="r.id"
+                  class="comp-row"
+                  draggable="true"
+                  @dragstart="dStart($event, i)"
+                  @dragover="dOver"
+                  @drop="dDrop($event, i)"
+                  @touchstart.passive="tStart($event, i)"
+                  @touchmove="tMove"
+                  @touchend.passive="tEnd($event, i)">
+                <td class="drag-grip">⠿</td>
+                <td class="pos-num">{{ i + 1 }}</td>
+                <td>
+                  <input v-if="!r.dnf" v-model="r.timeStr" class="fi edit-time" placeholder="M:SS" />
+                  <span v-else class="finish-time none">DNF</span>
+                </td>
+                <td>{{ compName(r.competitor_id) }}</td>
+                <td>
+                  <label class="dnf-toggle">
+                    <input type="checkbox" v-model="r.dnf" />
+                    DNF
+                  </label>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <!-- Voice notes accessible in edit mode -->
         <div v-if="raceRecordings.length" style="margin-top:16px">
@@ -400,20 +448,6 @@ function exportAll() {
 </template>
 
 <style scoped>
-.edit-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 0; border-bottom: 1px solid rgba(28,64,104,.4);
-}
-.edit-row:last-child { border-bottom: none; }
-.edit-move { display: flex; flex-direction: column; gap: 2px; }
-.move-btn {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  border-radius: 6px; width: 28px; height: 28px; font-size: 14px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  touch-action: manipulation;
-}
-.move-btn:disabled { opacity: .2; pointer-events: none; }
-.edit-name { flex: 1; font: 600 14px/1 var(--sans); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .edit-time { width: 76px; padding: 8px 10px; min-height: 40px; font-size: 15px; text-align: center; }
 .dnf-toggle { display: flex; align-items: center; gap: 6px; font: 600 12px/1 var(--sans); color: var(--text2); flex-shrink: 0; cursor: pointer; }
 .dnf-toggle input { width: 18px; height: 18px; accent-color: var(--warn); cursor: pointer; }
