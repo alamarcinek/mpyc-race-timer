@@ -16,7 +16,8 @@ const phase       = ref('idle')         // idle | countdown | racing
 const seqMinutes  = ref(3)
 const raceOrder   = ref([])             // draggable copy of competitors
 const finishTimes = ref([])             // elapsed seconds in finish order
-let   raceNumber  = 1
+let   raceNumber    = 1
+let   currentRaceId = null   // pre-generated UUID so recordings link to the race before it's saved
 
 // ── Timers
 let timerInterval = null
@@ -155,6 +156,8 @@ async function startRecording() {
     recStart       = Date.now()
     recDuration.value = 0
     liveTranscript = ''
+    const capturedRaceId     = phase.value !== 'idle' ? currentRaceId   : null
+    const capturedRaceNumber = phase.value !== 'idle' ? raceNumber       : null
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (SR) {
@@ -193,7 +196,8 @@ async function startRecording() {
         duration,
         mimeType:    mediaRecorder.mimeType,
         blob,
-        raceNumber:  phase.value !== 'idle' ? raceNumber : null,
+        raceId:      capturedRaceId,
+        raceNumber:  capturedRaceNumber,
         transcript:  liveTranscript || null,
       })
       ui.toast(`Note saved (${fmtTime(duration)})${liveTranscript ? ' + transcript' : ''}`)
@@ -264,6 +268,7 @@ function startRace() {
   if (!raceOrder.value.length) { ui.toast('Add competitors in Setup first', false); return }
   initAudio()
   ui.requestWakeLock()
+  currentRaceId = crypto.randomUUID()
   phase.value   = 'countdown'
   countdownEnd  = Date.now() + seqMinutes.value * 60 * 1000
   raceStartTime = null
@@ -302,6 +307,7 @@ function cancelRace() {
     phase.value     = 'idle'
     raceStartTime   = null
     displayMs.value = 0
+    currentRaceId   = null
     ui.releaseWakeLock()
     haptic(50)
   })
@@ -333,6 +339,7 @@ async function doFinishRace() {
 
   // Snapshot state before resetting so async saves use correct data
   const savedRaceNumber  = raceNumber
+  const savedRaceId      = currentRaceId
   const savedStartTime   = raceStartTime ? new Date(raceStartTime).toTimeString().slice(0,8) : '00:00:00'
   const savedFinishTimes = [...finishTimes.value]
   const savedRaceOrder   = [...raceOrder.value]
@@ -341,13 +348,15 @@ async function doFinishRace() {
   phase.value       = 'idle'
   displayMs.value   = 0
   finishTimes.value = []
+  currentRaceId     = null
   raceNumber++
   raceOrder.value   = [...compStore.competitors]
   hapticPat([100, 80, 100, 80, 200])
   ui.toast(`Race ${savedRaceNumber} saved!`)
 
-  // Persist in background
+  // Persist in background — use the pre-generated ID so recordings already link to this race
   const race = await raceStore.createRace({
+    id:           savedRaceId,
     race_number:  savedRaceNumber,
     race_date:    new Date().toISOString().slice(0,10),
     start_time:   savedStartTime,

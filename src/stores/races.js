@@ -19,7 +19,7 @@ export const useRacesStore = defineStore('races', () => {
 
   function createRace(payload) {
     const record = {
-      id:          crypto.randomUUID(),
+      id:          payload.id || crypto.randomUUID(),
       race_number: payload.race_number,
       race_date:   payload.race_date,
       start_time:  payload.start_time,

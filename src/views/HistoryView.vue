@@ -128,9 +128,17 @@ function deleteRace() {
 }
 
 // ── Edit results
-const raceRecordings    = computed(() => detailRace.value
-  ? recordings.value.filter(r => r.raceNumber === detailRace.value.race_number) : [])
-const generalRecordings = computed(() => recordings.value.filter(r => !r.raceNumber))
+function recsForRace(race) {
+  if (!race) return []
+  const raceDate = race.race_date
+  return recordings.value.filter(r =>
+    r.raceId === race.id ||
+    // fallback for recordings saved before raceId was introduced
+    (!r.raceId && r.raceNumber === race.race_number &&
+     new Date(r.timestamp).toISOString().slice(0, 10) === raceDate)
+  )
+}
+const raceRecordings = computed(() => recsForRace(detailRace.value))
 
 function startEdit() {
   // Sort by position so time slots are in correct order
@@ -287,9 +295,14 @@ onMounted(async () => {
            class="hist-card" @click="openDetail(race)">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div class="date">{{ race.start_time?.slice(0,5) }}</div>
-          <span :class="race.confirmed ? 'badge-ready' : 'badge-draft'">
-            {{ race.confirmed ? '✓ Ready' : 'Draft' }}
-          </span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span v-if="recsForRace(race).length" class="badge-rec">
+              🎙 {{ recsForRace(race).length }}
+            </span>
+            <span :class="race.confirmed ? 'badge-ready' : 'badge-draft'">
+              {{ race.confirmed ? '✓ Ready' : 'Draft' }}
+            </span>
+          </div>
         </div>
         <div class="name">Race {{ race.displayNumber }}</div>
         <div class="meta">{{ race.seq_minutes }}min start sequence</div>
@@ -439,6 +452,7 @@ onMounted(async () => {
 
 .badge-ready { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(0,232,176,.15); color: var(--accent); }
 .badge-draft { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(255,170,46,.12); color: var(--orange); }
+.badge-rec   { font: 600 11px/1 var(--sans); padding: 4px 8px; border-radius: 8px; background: rgba(77,168,255,.12); color: var(--blue); }
 
 
 .rec-row {
