@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRacesStore } from '@/stores/races.js'
 import { useCompetitorsStore } from '@/stores/competitors.js'
 import { useUIStore } from '@/stores/ui.js'
@@ -79,12 +79,6 @@ async function transcribeRecording(rec) {
 function fmtRecTime(ts) {
   return new Date(ts).toLocaleString('en-NZ', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
 }
-
-onMounted(async () => {
-  await compStore.load()
-  await raceStore.loadRaces()
-  await loadRecordings()
-})
 
 function haptic(ms = 30) { try { navigator.vibrate?.(ms) } catch {} }
 
@@ -266,6 +260,29 @@ function exportDay(date, races) {
   })
   dlCSV(csv, `MPYC_${date}.csv`)
 }
+
+// ── Auto-transcribe when back online
+async function autoTranscribe() {
+  if (!navigator.onLine) return
+  const pending = recordings.value.filter(r => !r.transcript)
+  if (!pending.length) return
+  ui.toast(`Transcribing ${pending.length} voice note${pending.length > 1 ? 's' : ''}…`)
+  for (const rec of pending) {
+    await transcribeRecording(rec)
+  }
+}
+
+onMounted(async () => {
+  await compStore.load()
+  await raceStore.loadRaces()
+  await loadRecordings()
+  autoTranscribe()
+  window.addEventListener('online', autoTranscribe)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('online', autoTranscribe)
+})
 </script>
 
 <template>
