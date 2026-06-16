@@ -111,7 +111,8 @@ function longBeep() { horn() }
 
 // ── Init / re-activate
 function initRace() {
-  raceNumber  = raceStore.races.length + 1
+  const today = new Date().toISOString().slice(0, 10)
+  raceNumber  = raceStore.races.filter(r => r.race_date === today).length + 1
   raceOrder.value = [...compStore.competitors]
 }
 
