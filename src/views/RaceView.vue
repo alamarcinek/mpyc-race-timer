@@ -158,21 +158,25 @@ async function startRecording() {
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (SR) {
-      recognizer              = new SR()
-      recognizer.continuous   = true
+      recognizer                = new SR()
+      recognizer.continuous     = false
       recognizer.interimResults = false
-      recognizer.lang         = 'en-NZ'
+      recognizer.lang           = 'en-NZ'
       recognizer.onresult = e => {
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal)
             liveTranscript += (liveTranscript ? ' ' : '') + e.results[i][0].transcript
         }
       }
-      recognizer.onerror = () => {}
+      recognizer.onerror = e => {
+        if (e.error === 'not-allowed' || e.error === 'audio-capture')
+          ui.toast('Transcription permission denied', false)
+      }
       recognizer.onend = () => {
         if (isRecording.value) try { recognizer.start() } catch {}
       }
-      try { recognizer.start() } catch {}
+      // Small delay so the getUserMedia stream settles before SR starts
+      setTimeout(() => { try { recognizer.start() } catch {} }, 150)
     }
 
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data) }
