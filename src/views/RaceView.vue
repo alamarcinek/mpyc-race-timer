@@ -39,9 +39,11 @@ const mSailNo       = ref('')
 const mClass        = ref('ILCA 7')
 
 // ── Drag & drop
-let dragIdx    = null
-let tFromIdx   = null
-let tEl        = null
+let dragIdx      = null
+let tFromIdx     = null
+let tEl          = null
+let flashTimer   = null
+const justMovedId = ref(null)
 
 // ── Debounce rapid taps
 const _lastTap = {}
@@ -464,6 +466,9 @@ function moveRow(from, to) {
   arr.splice(to, 0, item)
   raceOrder.value = arr
   haptic(20)
+  justMovedId.value = arr[to]
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { justMovedId.value = null }, 2000)
 }
 
 // ── Add sailor modal
@@ -549,6 +554,7 @@ function fmtTime(secs) {
           <tbody class="race-tbody">
             <tr v-for="(c, i) in raceRows" :key="c.id"
                 class="comp-row"
+                :class="{ 'drop-flash': justMovedId === c.id }"
                 draggable="true"
                 @dragstart="dStart($event, i)"
                 @dragover="dOver"
@@ -654,8 +660,14 @@ function fmtTime(secs) {
   user-select: none; -webkit-user-select: none;
   cursor: grab; color: var(--text2); padding: 0 6px; font-size: 18px;
 }
-.comp-row.dragging  { opacity: 0.35; }
-.comp-row.drag-over { box-shadow: 0 -2px 0 var(--accent) inset; }
+.comp-row.dragging   { opacity: 0.35; }
+.comp-row.drag-over  { box-shadow: 0 -2px 0 var(--accent) inset; }
+.comp-row.drop-flash { animation: row-landed 1.8s ease-out forwards; }
+@keyframes row-landed {
+  0%   { background: rgba(77, 168, 255, 0.30); }
+  30%  { background: rgba(77, 168, 255, 0.22); }
+  100% { background: transparent; }
+}
 
 .race-sticky {
   position: sticky; top: 0; z-index: 80;
