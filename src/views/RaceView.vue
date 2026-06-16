@@ -509,7 +509,7 @@ function fmtTime(secs) {
               class="btn btn-primary btn-xl btn-block"
               @click="startRace">▶ START SEQUENCE</button>
 
-      <button v-if="phase !== 'idle'"
+      <button v-if="phase === 'countdown'"
               class="btn btn-danger btn-xl btn-block"
               @click="cancelRace">✕ CANCEL RACE</button>
 
@@ -570,9 +570,12 @@ function fmtTime(secs) {
     </div>
 
     <!-- Finish & save -->
-    <div v-if="phase === 'racing' || finishTimes.length > 0" style="padding:8px 0">
-      <button class="btn btn-primary btn-xl btn-block" @click="confirmFinish">
+    <div v-if="phase === 'racing' || finishTimes.length > 0" class="finish-save-row">
+      <button class="btn btn-primary btn-xl" style="flex:1" @click="confirmFinish">
         ✓ FINISH &amp; SAVE RACE
+      </button>
+      <button v-if="phase === 'racing'" class="btn btn-ghost btn-sm" @click="cancelRace">
+        ✕ Cancel
       </button>
     </div>
 
@@ -639,6 +642,7 @@ function fmtTime(secs) {
 
 <style scoped>
 .race-controls { display: flex; flex-direction: column; gap: var(--tap-gap); padding: 8px 0; }
+.finish-save-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
 
 .btn-rec {
   position: fixed; right: 16px; bottom: 90px; z-index: 50;
