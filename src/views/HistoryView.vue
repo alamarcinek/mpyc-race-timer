@@ -244,20 +244,26 @@ const groupedRaces = computed(() => {
   }
   return Object.entries(groups)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, races]) => ({ date, races }))
+    .map(([date, races]) => ({
+      date,
+      races: [...races]
+        .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+        .map((race, i) => ({ ...race, displayNumber: i + 1 })),
+    }))
 })
 
 function exportDay(date, races) {
   const allResults = JSON.parse(localStorage.getItem('mpyc_results') || '[]')
   let csv = 'raceno,class,sailno,HelmName,start,elapsed\n'
-  for (const race of races) {
+  races.forEach((race, i) => {
+    const raceNo  = race.displayNumber ?? (i + 1)
     const results = allResults.filter(r => r.race_id === race.id)
     const start   = race.start_time || '00:00:00'
     results.forEach(r => {
       const elapsed = r.dnf ? 'DNF' : fmtHMS(r.elapsed_seconds)
-      csv += `${race.race_number},${csvStr(compClass(r.competitor_id))},${csvStr(compSail(r.competitor_id))},${csvStr(compName(r.competitor_id))},${start},${elapsed}\n`
+      csv += `${raceNo},${csvStr(compClass(r.competitor_id))},${csvStr(compSail(r.competitor_id))},${csvStr(compName(r.competitor_id))},${start},${elapsed}\n`
     })
-  }
+  })
   dlCSV(csv, `MPYC_${date}.csv`)
 }
 </script>
@@ -287,7 +293,7 @@ function exportDay(date, races) {
             {{ race.confirmed ? '✓ Ready' : 'Draft' }}
           </span>
         </div>
-        <div class="name">Race {{ race.race_number }}</div>
+        <div class="name">Race {{ race.displayNumber }}</div>
         <div class="meta">{{ race.seq_minutes }}min start sequence</div>
       </div>
 
@@ -306,7 +312,7 @@ function exportDay(date, races) {
 
       <!-- Title row -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-        <h2 v-if="detailRace">Race {{ detailRace.race_number }}</h2>
+        <h2 v-if="detailRace">Race {{ detailRace.displayNumber ?? detailRace.race_number }}</h2>
         <span v-if="detailRace" :class="detailRace.confirmed ? 'badge-ready' : 'badge-draft'">
           {{ detailRace.confirmed ? '✓ Ready' : 'Draft' }}
         </span>
