@@ -16,7 +16,11 @@ const router    = useRouter()
 // ── Local race state
 const phase       = ref('idle')         // idle | countdown | racing
 const seqMinutes  = ref(3)
-const raceOrder   = ref([])             // draggable copy of competitors
+const raceOrder   = ref([])             // ordered array of competitor IDs
+// Derive live competitor data from store so name/sail edits propagate immediately
+const raceRows    = computed(() =>
+  raceOrder.value.map(id => compStore.competitors.find(c => c.id === id)).filter(Boolean)
+)
 const finishTimes = ref([])             // elapsed seconds in finish order
 let   raceNumber    = 1
 let   currentRaceId = null   // pre-generated UUID so recordings link to the race before it's saved
@@ -116,7 +120,7 @@ function longBeep() { horn() }
 function initRace() {
   const today = new Date().toISOString().slice(0, 10)
   raceNumber  = raceStore.races.filter(r => r.race_date === today).length + 1
-  raceOrder.value = [...compStore.competitors]
+  raceOrder.value = compStore.competitors.map(c => c.id)
 }
 
 onMounted(async () => {
@@ -373,7 +377,7 @@ async function doFinishRace() {
   const savedRaceId      = currentRaceId
   const savedStartTime   = raceStartTime ? new Date(raceStartTime).toTimeString().slice(0,8) : '00:00:00'
   const savedFinishTimes = [...finishTimes.value]
-  const savedRaceOrder   = [...raceOrder.value]
+  const savedRaceOrder   = [...raceOrder.value]   // array of IDs
 
   // Reset UI immediately — don't make the user stare at RACE TIME while Supabase writes
   phase.value       = 'idle'
@@ -381,7 +385,7 @@ async function doFinishRace() {
   finishTimes.value = []
   currentRaceId     = null
   raceNumber++
-  raceOrder.value   = [...compStore.competitors]
+  raceOrder.value   = compStore.competitors.map(c => c.id)
   hapticPat([100, 80, 100, 80, 200])
   ui.toast(`Race ${savedRaceNumber} saved!`)
 
@@ -394,9 +398,9 @@ async function doFinishRace() {
     seq_minutes:  seqMinutes.value,
   })
 
-  const results = savedRaceOrder.map((c, i) => ({
+  const results = savedRaceOrder.map((id, i) => ({
     race_id:         race.id,
-    competitor_id:   c.id,
+    competitor_id:   id,
     position:        i + 1,
     elapsed_seconds: i < savedFinishTimes.length ? savedFinishTimes[i] : 0,
     dnf:             i >= savedFinishTimes.length,
@@ -455,7 +459,7 @@ async function submitAddSailor() {
   const name = mName.value.trim()
   if (!name) { ui.toast('Enter name', false); return }
   const comp = await compStore.addCompetitor({ name, sail_no: mSailNo.value.trim(), class: mClass.value })
-  raceOrder.value.push(comp)
+  raceOrder.value.push(comp.id)
   ui.markSaved()
   addSailorOpen.value = false
   mName.value = ''; mSailNo.value = ''; mClass.value = 'ILCA 7'
@@ -516,7 +520,7 @@ function fmtTime(secs) {
     </div>
 
     <!-- Results table -->
-    <div v-if="raceOrder.length" class="card">
+    <div v-if="raceRows.length" class="card">
       <div class="card-title">Results — drag rows to reorder</div>
       <div style="overflow-x:auto">
         <table class="comp-table">
@@ -531,7 +535,7 @@ function fmtTime(secs) {
             </tr>
           </thead>
           <tbody class="race-tbody">
-            <tr v-for="(c, i) in raceOrder" :key="c.id"
+            <tr v-for="(c, i) in raceRows" :key="c.id"
                 class="comp-row"
                 draggable="true"
                 @dragstart="dStart($event, i)"
