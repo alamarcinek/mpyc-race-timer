@@ -32,6 +32,16 @@ let raceStartTime = null
 let lastBeepSec   = -1
 const displayMs   = ref(0)             // drives the timer display
 
+// ── Scoring notations
+const NOTATIONS = ['OCS', 'DNS', 'DNF', 'DSQ', 'RET', 'DNC']
+const notations = ref({})   // competitor id → notation code
+
+function setNotation(id, val) {
+  const n = { ...notations.value }
+  if (val) n[id] = val; else delete n[id]
+  notations.value = n
+}
+
 // ── Add sailor modal
 const addSailorOpen = ref(false)
 const mName         = ref('')
@@ -344,6 +354,7 @@ function cancelRace() {
     phase.value     = 'idle'
     raceStartTime   = null
     displayMs.value = 0
+    notations.value = {}
     currentRaceId   = null
     ui.releaseWakeLock()
     haptic(50)
@@ -380,11 +391,13 @@ async function doFinishRace() {
   const savedStartTime   = raceStartTime ? new Date(raceStartTime).toTimeString().slice(0,8) : '00:00:00'
   const savedFinishTimes = [...finishTimes.value]
   const savedRaceOrder   = [...raceOrder.value]   // array of IDs
+  const savedNotations   = { ...notations.value }
 
   // Reset UI immediately — don't make the user stare at RACE TIME while Supabase writes
   phase.value       = 'idle'
   displayMs.value   = 0
   finishTimes.value = []
+  notations.value   = {}
   currentRaceId     = null
   raceNumber++
   raceOrder.value   = compStore.competitors.map(c => c.id)
@@ -400,13 +413,18 @@ async function doFinishRace() {
     seq_minutes:  seqMinutes.value,
   })
 
-  const results = savedRaceOrder.map((id, i) => ({
-    race_id:         race.id,
-    competitor_id:   id,
-    position:        i + 1,
-    elapsed_seconds: i < savedFinishTimes.length ? savedFinishTimes[i] : 0,
-    dnf:             i >= savedFinishTimes.length,
-  }))
+  const results = savedRaceOrder.map((id, i) => {
+    const notation = savedNotations[id] ?? null
+    const hasTime  = i < savedFinishTimes.length
+    return {
+      race_id:         race.id,
+      competitor_id:   id,
+      position:        i + 1,
+      elapsed_seconds: hasTime ? savedFinishTimes[i] : 0,
+      dnf:             notation ? true : !hasTime,
+      notation,
+    }
+  })
 
   for (const r of results) await raceStore.saveResult(r)
   ui.markSaved()
@@ -549,6 +567,7 @@ function fmtTime(secs) {
               <th>Sailor</th>
               <th>Sail #</th>
               <th>Class</th>
+              <th>Code</th>
             </tr>
           </thead>
           <tbody class="race-tbody">
@@ -570,6 +589,14 @@ function fmtTime(secs) {
               <td>{{ c.name }}</td>
               <td class="sail-num">{{ c.sail_no }}</td>
               <td><span class="class-badge">{{ c.class }}</span></td>
+              <td>
+                <select class="notation-sel" :class="{ set: notations[c.id] }"
+                        :value="notations[c.id] || ''"
+                        @change="setNotation(c.id, $event.target.value)">
+                  <option value="">—</option>
+                  <option v-for="n in NOTATIONS" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -655,6 +682,18 @@ function fmtTime(secs) {
 </template>
 
 <style scoped>
+.notation-sel {
+  -webkit-appearance: none; appearance: none;
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text2); font: 600 11px/1 var(--sans);
+  padding: 4px 6px; cursor: pointer; text-align: center; width: 52px;
+  touch-action: manipulation;
+}
+.notation-sel.set {
+  border-color: var(--warn); color: var(--warn);
+  background: rgba(255, 92, 92, .08);
+}
+
 .drag-grip {
   touch-action: none;
   user-select: none; -webkit-user-select: none;

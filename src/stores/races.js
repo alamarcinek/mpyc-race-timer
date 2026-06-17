@@ -40,6 +40,7 @@ export const useRacesStore = defineStore('races', () => {
       position:        payload.position,
       elapsed_seconds: payload.elapsed_seconds,
       dnf:             payload.dnf ?? false,
+      notation:        payload.notation ?? null,
     }
     const all = JSON.parse(localStorage.getItem(RESULTS_KEY) || '[]')
     const i = all.findIndex(r => r.id === record.id)

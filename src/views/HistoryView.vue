@@ -101,6 +101,8 @@ function fmtDate(dateStr) {
   return d.toLocaleDateString('en-NZ', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
 }
 
+function resultCode(r) { return r.notation || (r.dnf ? 'DNF' : null) }
+
 function finisherCount(results) {
   return results.filter(r => !r.dnf).length
 }
@@ -225,7 +227,7 @@ function raceCSV(race, results) {
   const start = race.start_time || '00:00:00'
   let csv = 'raceno,class,sailno,HelmName,start,elapsed\n'
   results.forEach(r => {
-    const elapsed = r.dnf ? 'DNF' : fmtHMS(r.elapsed_seconds)
+    const elapsed = resultCode(r) ?? fmtHMS(r.elapsed_seconds)
     csv += `${race.race_number},${csvStr(compClass(r.competitor_id))},${csvStr(compSail(r.competitor_id))},${csvStr(compName(r.competitor_id))},${start},${elapsed}\n`
   })
   return csv
@@ -260,7 +262,7 @@ function exportDay(date, races) {
     const results = allResults.filter(r => r.race_id === race.id)
     const start   = race.start_time || '00:00:00'
     results.forEach(r => {
-      const elapsed = r.dnf ? 'DNF' : fmtHMS(r.elapsed_seconds)
+      const elapsed = resultCode(r) ?? fmtHMS(r.elapsed_seconds)
       csv += `${raceNo},${csvStr(compClass(r.competitor_id))},${csvStr(compSail(r.competitor_id))},${csvStr(compName(r.competitor_id))},${start},${elapsed}\n`
     })
   })
@@ -342,7 +344,9 @@ onMounted(async () => {
             <tbody>
               <tr v-for="r in detailResults" :key="r.id" class="comp-row">
                 <td class="pos-num">{{ r.position }}</td>
-                <td class="finish-time" :class="r.dnf ? 'none' : 'has'">{{ r.dnf ? 'DNF' : fmtTime(r.elapsed_seconds) }}</td>
+                <td class="finish-time" :class="resultCode(r) ? 'none' : 'has'">
+                  {{ resultCode(r) ?? fmtTime(r.elapsed_seconds) }}
+                </td>
                 <td>{{ compName(r.competitor_id) }}</td>
                 <td class="sail-num">{{ compSail(r.competitor_id) }}</td>
                 <td><span class="class-badge">{{ compClass(r.competitor_id) }}</span></td>
@@ -386,6 +390,7 @@ onMounted(async () => {
                 <th>Sailor</th>
                 <th>Sail #</th>
                 <th>Class</th>
+                <th>Code</th>
               </tr>
             </thead>
             <tbody class="edit-tbody">
@@ -400,12 +405,20 @@ onMounted(async () => {
                   @touchend.passive="tEnd($event, i)">
                 <td class="drag-grip">⠿</td>
                 <td class="pos-num">{{ i + 1 }}</td>
-                <td class="finish-time" :class="r.dnf ? 'none' : 'has'">
-                  {{ r.dnf ? 'DNF' : fmtTime(r.elapsed_seconds) }}
+                <td class="finish-time" :class="resultCode(r) ? 'none' : 'has'">
+                  {{ resultCode(r) ?? fmtTime(r.elapsed_seconds) }}
                 </td>
                 <td>{{ compName(r.competitor_id) }}</td>
                 <td class="sail-num">{{ compSail(r.competitor_id) }}</td>
                 <td><span class="class-badge">{{ compClass(r.competitor_id) }}</span></td>
+                <td>
+                  <select class="notation-sel" :class="{ set: r.notation }"
+                          :value="r.notation || ''"
+                          @change="r.notation = $event.target.value || null; r.dnf = !!r.notation">
+                    <option value="">—</option>
+                    <option v-for="n in ['OCS','DNS','DNF','DSQ','RET','DNC']" :key="n" :value="n">{{ n }}</option>
+                  </select>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -454,6 +467,14 @@ onMounted(async () => {
 .badge-draft { font: 700 11px/1 var(--sans); text-transform: uppercase; letter-spacing: .5px; padding: 4px 10px; border-radius: 8px; background: rgba(255,170,46,.12); color: var(--orange); }
 .badge-rec   { font: 600 11px/1 var(--sans); padding: 4px 8px; border-radius: 8px; background: rgba(77,168,255,.12); color: var(--blue); }
 
+
+.notation-sel {
+  -webkit-appearance: none; appearance: none;
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text2); font: 600 11px/1 var(--sans);
+  padding: 4px 6px; cursor: pointer; text-align: center; width: 52px;
+}
+.notation-sel.set { border-color: var(--warn); color: var(--warn); background: rgba(255,92,92,.08); }
 
 .rec-row {
   display: flex; align-items: center; justify-content: space-between;
