@@ -351,7 +351,7 @@ html, body {
 .modal-bg.open { opacity: 1; pointer-events: all; }
 .modal {
   background: var(--bg2); border: 2px solid var(--border);
-  border-radius: 22px 22px 0 0; padding: 24px 20px 40px;
+  border-radius: 22px 22px 0 0; padding: 24px 20px calc(40px + env(safe-area-inset-bottom, 0px));
   width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto;
   transform: translateY(100%); transition: transform .3s;
 }
