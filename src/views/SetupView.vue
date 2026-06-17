@@ -38,22 +38,19 @@ async function addCompetitor() {
   addName.value = ''
   addSailNo.value = ''
   addCustomCl.value = ''
-  ui.markSaved()
   haptic(30)
   ui.toast(`${name} added`)
 }
 
 function removeComp(id) {
   store.deleteCompetitor(id)
-  ui.markSaved()
   haptic(20)
 }
 
 function clearAll() {
   ui.showConfirm('Clear All', 'Remove all competitors?', async () => {
     for (const c of [...store.competitors]) await store.deleteCompetitor(c.id)
-    ui.markSaved()
-    ui.toast('All competitors cleared', false)
+      ui.toast('All competitors cleared', false)
   })
 }
 
@@ -115,8 +112,7 @@ async function handlePhoto(file) {
         for (const p of parsed) {
           store.addCompetitor({ name: p.name || 'Unknown', sail_no: String(p.sailNo || p.sail_no || ''), class: p.class || 'ILCA 7' })
         }
-        ui.markSaved()
-        parseStatus.value = { type: 'success', text: `✓ Found ${parsed.length} competitor${parsed.length > 1 ? 's' : ''}` }
+              parseStatus.value = { type: 'success', text: `✓ Found ${parsed.length} competitor${parsed.length > 1 ? 's' : ''}` }
         ui.toast(`${parsed.length} sailors imported`)
       }
       if (store.competitors.length) {

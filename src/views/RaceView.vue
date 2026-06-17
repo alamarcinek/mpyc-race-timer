@@ -427,7 +427,6 @@ async function doFinishRace() {
   })
 
   for (const r of results) await raceStore.saveResult(r)
-  ui.markSaved()
   sessionRecordings.value = []
   router.push('/history')
 }
@@ -495,7 +494,6 @@ async function submitAddSailor() {
   if (!name) { ui.toast('Enter name', false); return }
   const comp = await compStore.addCompetitor({ name, sail_no: mSailNo.value.trim(), class: mClass.value })
   raceOrder.value.push(comp.id)
-  ui.markSaved()
   addSailorOpen.value = false
   mName.value = ''; mSailNo.value = ''; mClass.value = 'ILCA 7'
   haptic(30); ui.toast(`${name} added`)

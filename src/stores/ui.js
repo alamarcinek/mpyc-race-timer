@@ -3,12 +3,6 @@ import { ref } from 'vue'
 
 export const useUIStore = defineStore('ui', () => {
 
-  // Save status
-  const saveStatus = ref('Ready')
-  function markSaved() {
-    saveStatus.value = 'Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  }
-
   // Toast
   const toastMsg     = ref('')
   const toastType    = ref('ok')
@@ -43,20 +37,15 @@ export const useUIStore = defineStore('ui', () => {
     _confirmCb = null
   }
 
-  // Wake lock
-  const wakeLockLabel = ref('☀️ Screen lock: off')
-  const wakeActive    = ref(false)
+  // Wake lock (keeps screen on during a race — no UI toggle)
+  const wakeActive = ref(false)
   let _wakeLock = null
   async function requestWakeLock() {
     try {
       if ('wakeLock' in navigator) {
         _wakeLock = await navigator.wakeLock.request('screen')
-        wakeLockLabel.value = '☀️ Screen: awake'
         wakeActive.value = true
-        _wakeLock.addEventListener('release', () => {
-          wakeLockLabel.value = '🌙 Screen lock: on'
-          wakeActive.value = false
-        })
+        _wakeLock.addEventListener('release', () => { wakeActive.value = false })
       }
     } catch {}
   }
@@ -64,13 +53,11 @@ export const useUIStore = defineStore('ui', () => {
     _wakeLock?.release()
     _wakeLock = null
     wakeActive.value = false
-    wakeLockLabel.value = '☀️ Screen lock: off'
   }
 
   return {
-    saveStatus, markSaved,
     toastMsg, toastType, toastVisible, toast,
     confirmOpen, confirmTitle, confirmMsg, showConfirm, doConfirm, cancelConfirm,
-    wakeLockLabel, wakeActive, requestWakeLock, releaseWakeLock,
+    wakeActive, requestWakeLock, releaseWakeLock,
   }
 })
