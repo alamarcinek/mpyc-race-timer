@@ -322,6 +322,7 @@ onMounted(async () => {
   <!-- Race detail bottom sheet -->
   <div class="modal-bg" :class="{ open: detailOpen }" @click.self="detailOpen = false">
     <div class="modal">
+      <div class="modal-handle"></div>
 
       <!-- Title row -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
