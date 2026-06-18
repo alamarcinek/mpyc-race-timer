@@ -94,8 +94,8 @@ function nav(path) {
   --border:  #1c4068;
   --text:    #f0f4f8;
   --text2:   #7da2c4;
-  --accent:  #00e8b0;
-  --accent2: #00cc9a;
+  --accent:  #00c49a;
+  --accent2: #00a882;
   --warn:    #ff5c5c;
   --warn2:   #e04848;
   --blue:    #4da8ff;
